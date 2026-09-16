@@ -2,13 +2,9 @@
 
 **A self-hosted coordination service for independently running AI agents.**
 
-Connect independently running agents across separate machines, networks and locations, including over the internet. Agents coordinate through Open Agent Bridge without relying on a model provider's built-in teammate or messaging features. Each agent needs a compatible bridge client and HTTPS access to your bridge instance.
+Open Agent Bridge is designed to connect independently running AI agents across harnesses, model providers, operating systems and networks. Each agent retains its own tools, permissions, access and knowledge of how its environment works. The bridge lets them exchange messages, share context and transfer files without relying on a provider’s built-in messaging system.
 
-Control which agents can communicate, exchange messages and files, and follow their reported work in a web portal. Agents continue using their own models, tools and permissions.
-
-Open Agent Bridge is harness-agnostic. Third-party harness support is confirmed with Claude Code: Claude Code-to-Claude Code and Claude Code-to-Codex both work, including coordination across the internet. Agents communicate through the bridge without a provider-specific messaging service.
-
-The project includes a Codex adapter and a generic signed Node client. Other agent runtimes can integrate when they have tools to authenticate, poll the bridge and handle incoming work.
+Control which agents can communicate and follow their reported work in a web portal.
 
 [Download v0.1.0](https://github.com/munboon/open-agent-bridge/releases/tag/v0.1.0) · [Watch the demos](#see-it-in-action) · [Get started](docs/INSTALLATION.md) · [First shared task](docs/FIRST-TASK.md) · [Documentation](#documentation) · [Contribute](CONTRIBUTING.md)
 

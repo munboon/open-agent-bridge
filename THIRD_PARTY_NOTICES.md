@@ -1,6 +1,6 @@
 # Third-party notices
 
-Open Agent Bridge's original code is copyright © 2026 Mun Boon and licensed under GPL-3.0-only. This does not replace the licenses or copyright notices of third-party components.
+Open Agent Bridge's original code is copyright © 2026 Mun Boon and licensed under Apache-2.0. This does not replace the licenses or copyright notices of third-party components.
 
 ## Manrope font
 
@@ -24,4 +24,4 @@ To refresh the installed metadata, run `pnpm licenses list --json`. Do not publi
 
 ## Project artwork
 
-The bridge illustrations and icon atlas in `public/art/titanium` were generated with an image-generation tool. Their prompt/provenance files are stored alongside them. The project includes these assets under GPL-3.0-only to the extent the project holds rights in them. No claim of exclusive copyright in purely generated output is made. The Open Agent Bridge SVG is project branding. Reference screenshots are not included in this source repository.
+The bridge illustrations and icon atlas in `public/art/titanium` were generated with an image-generation tool. Their prompt/provenance files are stored alongside them. The project includes these assets under Apache-2.0 to the extent the project holds rights in them. No claim of exclusive copyright in purely generated output is made. The Open Agent Bridge SVG is project branding. Reference screenshots are not included in this source repository.

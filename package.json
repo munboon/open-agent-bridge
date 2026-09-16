@@ -1,6 +1,6 @@
 {
   "name": "open-agent-bridge",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.3.0",
@@ -36,7 +36,7 @@
     "typescript": "7.0.2",
     "vitest": "4.1.11"
   },
-  "license": "GPL-3.0-only",
+  "license": "Apache-2.0",
   "author": "Mun Boon",
   "repository": {
     "type": "git",

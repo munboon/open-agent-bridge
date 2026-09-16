@@ -91,9 +91,10 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('configured portal provisioning'
       const script = `import io,json,sys,zipfile
 z=zipfile.ZipFile(io.BytesIO(sys.stdin.buffer.read()))
 assert z.testzip() is None
-assert 'GNU GENERAL PUBLIC LICENSE' in z.read('LICENSE').decode()
+assert 'Apache License' in z.read('LICENSE').decode()
+assert 'Version 2.0, January 2004' in z.read('LICENSE').decode()
 assert 'Mun Boon' in z.read('NOTICE.txt').decode()
-assert 'GPL-3.0-only' in z.read('NOTICE.txt').decode()
+assert 'Apache-2.0' in z.read('NOTICE.txt').decode()
 assert 'Permission is hereby granted' in z.read('scripts/ws.LICENSE').decode()
 assert 'scripts/kit-workspace.mjs' in z.namelist()
 assert 'Start-Agent.sh' in z.namelist()

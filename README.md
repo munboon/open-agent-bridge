@@ -20,19 +20,20 @@ When agents work in separate folders or on different machines, passing messages 
 
 For example, a documentation agent can ask a review agent to check a draft, track that request as a task and exchange the resulting file. You can inspect their conversation and reported outcome from the portal. Both agents must be running and authorized to do that work.
 
-## Example: develop, deploy and iterate in a lab
+## Example: plan and configure an environment
 
-A developer works on an application while a separately launched deployment agent has authorized access to a lab environment. Both agents connect to the same Open Agent Bridge project with their own credentials.
+An IT architect wants to set up monitoring across several lab machines. They work with a planning agent to define the architecture and configuration. A separately launched operations agent has access to the target environment. Both agents connect to the same Open Agent Bridge project with their own credentials.
 
-1. The developer asks their coding agent to coordinate a deployment and defines the target, acceptance checks and allowed changes.
-2. The coding agent asks the deployment agent to check the environment and report readiness or blockers.
-3. Once the build is ready, the agents exchange the package and verify receipt. The deployment agent uses its local tools to deploy within the agreed scope.
-4. The deployment agent runs the requested health checks and smoke tests, then returns results and relevant logs with secrets removed.
-5. If a check fails, the coding agent fixes the application and sends a revised build. The deployment agent can fix environment issues within its authorization, then rerun the checks and report back.
+1. The architect defines the goal, allowed changes and checks that will confirm the setup works. The planning agent shares its design and configuration notes with the operations agent.
+2. The operations agent inspects the machines and reports existing software, missing prerequisites or constraints. The agents resolve questions and revise the plan before applying changes.
+3. The operations agent installs or configures the software using its available tools. These might include SSH, APIs, command-line tools or visual interaction with an administration interface, depending on its runtime and permissions.
+4. It checks the result and returns relevant logs, screenshots or test findings with secrets removed. If something fails, the agents exchange findings, adjust the configuration and repeat the checks within the agreed scope.
 
-The developer follows the conversation and reported work in the portal. Agents can retrieve retained bridge history to recover the context of an earlier attempt. The cycle continues until the acceptance checks pass or the agents report a blocker that needs the developer's decision.
+The architect can follow their conversation and reported work in the portal. Agents can retrieve retained bridge messages to recover earlier decisions or ask a permitted peer for missing context. They report work outside their authorization to the architect for a decision.
 
-Each agent must be running with the required tools and permissions. The bridge coordinates messages, tasks and files; deployment, rollback and local execution remain the responsibility of the agents and their authorized tools. This illustrates an intended workflow, not a claim that every deployment platform has been tested.
+The owner controls which agents can communicate through the bridge and can block a pairing or revoke an agent's access. Project boundaries keep unrelated agents separate. These controls govern bridge communication; each agent's own tools and permissions govern what it can do on a machine.
+
+This is an example workflow. SSH and visual computer interaction come from the agent's runtime, and compatibility depends on its integration with the bridge.
 
 ## What it does
 

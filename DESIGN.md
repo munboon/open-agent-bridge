@@ -2,8 +2,13 @@
 name: Open Agent Bridge
 description: Titanium Blue owner workspace with silver backgrounds and royal-blue actions.
 colors:
-  nav-active: "#fff"
-  nav-active-text: "#12366b"
+  enterprise-navy: "#101d32"
+  enterprise-nav-raised: "#1d3353"
+  enterprise-nav-line: "#2e4361"
+  enterprise-on-navy: "#f5f8ff"
+  enterprise-muted-navy: "#bacbe3"
+  nav-active: "#1d3353"
+  nav-active-text: "#f5f8ff"
   identity: "#12366b"
   on-identity: "#fff"
   identity-muted: "#d2e2fa"
@@ -32,6 +37,22 @@ colors:
   dark-selected-text: "#d7e7ff"
   dark-line: "#3a4b65"
 typography:
+  workspace-banner:
+    fontSize: "clamp(1.75rem, 2.6vw, 2.6rem)"
+    fontWeight: 750
+    lineHeight: 1.15
+  workspace-lead:
+    fontSize: "1rem"
+  workspace-count:
+    fontSize: "1.8rem"
+  workspace-mobile-count:
+    fontSize: "1.4rem"
+  workspace-project:
+    fontSize: ".9rem"
+  workspace-caption:
+    fontSize: ".8rem"
+  workspace-footnote:
+    fontSize: ".75rem"
   display:
     fontFamily: "Manrope, Segoe UI, sans-serif"
     fontSize: "clamp(2rem, 3vw, 3rem)"
@@ -56,6 +77,7 @@ typography:
     fontSize: ".875rem"
     fontWeight: 600
 rounded:
+  workspace-panel: "10px"
   badge: "5px"
   control: "8px"
   selector: "9px"
@@ -95,6 +117,23 @@ The owner portal uses cool silver backgrounds, opaque white panels and royal-blu
 
 The portal is an operating workspace. Keep the conversation and message composer visible across desktop, tablet and phone layouts. Preserve real delivery states, errors, keyboard focus, password visibility controls and explicit secret reveal actions.
 
-Use Manrope with system fallbacks. Main navigation uses a blue rail; selected items use white backgrounds with navy text. Mobile navigation moves to the bottom bar and drawer.
+Use Manrope with system fallbacks. Workspace navigation uses a dark navy rail; selected items use a lighter navy background with pale text. Mobile navigation moves to the bottom bar and drawer.
 
 `public/brand/open-agent-bridge.svg` is the standalone bridge mark. The icon atlas and decorative sculpture under `public/art/titanium/` are generated raster assets. Their generation prompts are retained beside them. Decorative artwork never represents live status.
+
+## Enterprise workspace treatment, 16 September 2026
+
+The owner requested a large visual banner based on their dashboard reference.
+`src/app/enterprise.css` scopes this treatment to the workspace. Login retains its
+existing silver and blue layout. The banner uses `bridge-enterprise.png` with real
+HTML text and functional project actions. Its generation prompt is stored beside it.
+On phones the artwork sits above the copy so neither competes for limited width.
+
+Preserve the compact project list and a single divided summary strip. Counts remain
+limited to accessible projects; stale and unreported states must remain explicit.
+Use the existing product workflows. Reference-only integrations, progress charts,
+notifications and system-health claims are not implemented capabilities.
+
+Use opaque surfaces, restrained borders, tabular counts and readable secondary text.
+Outline actions use theme tokens, including in dark mode. The navy navigation uses
+its own fixed contrast tokens in both themes.

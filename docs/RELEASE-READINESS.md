@@ -36,3 +36,15 @@ Destination: `munboon/open-agent-bridge` on GitHub. Verified private and empty d
 5. Publish tag `v0.0.1` as a prerelease with the notes in `CHANGELOG.md`. Verify the public license, README, documentation links and source archive.
 
 Do not include `.local`, downloaded agent kits, database backups, provider credentials, runtime binaries or package storage in the repository or release assets. Do not treat a source commit as a backup of those items.
+
+## Follow-up review after overview enhancements
+
+Reviewed the changes through `589144ca178bf737a26e0732edd876204da36f67`: the project overview now shows work and agent status, and agent actions are grouped in a three-dot menu. These changes do not add database seeds or alter authentication. Authenticated browser checks at 1440px and 390px verified the overview and action-menu entries, viewport bounds, Escape dismissal and absence of browser errors. The preview was restarted after the production build.
+
+The full local suite passes with 198 tests in 28 suites, including a new bootstrap assertion: exactly one platform administrator named `admin`, a verified password hash rather than plaintext, and zero projects for that administrator. Environments and agents require projects and are not created by bootstrap. Type checking and production build pass.
+
+The release is source-only. Installers supply their own administrator password during local bootstrap. Neither the preview account nor its password or database is shipped. The visible CI database password belongs only to a disposable test container and is not a default administrator credential. README now explains this distinction. Ignore rules also cover database dumps, SQLite files and credential-bearing kit downloads.
+
+A renewed scan of all Git refs found no secrets. An exact check across 221 historical blobs found neither the preview administrator password nor `project.nexlinksys.com`. No tracked runtime database, dump or credential archive was found. The dependency audit still reports zero known vulnerabilities, and workflow validation passes.
+
+Remote CI and private vulnerability reporting remain publication-stage checks. Windows and the independent signed-enrollment pilot retain the limitations listed above. Existing local preview projects are not release contents and were preserved.

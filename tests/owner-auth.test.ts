@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { Pool } from 'pg';
+import { verifyPassword } from 'better-auth/crypto';
 import { bootstrapOwner } from '../scripts/bootstrap-owner';
 import { createOwnerAuth, validateOwnerAuthConfig, type OwnerAuth } from '../src/lib/owner-auth';
 import { createOwnerGuard, OwnerAuthError, ownerAuthErrorResponse } from '../src/lib/owner';
@@ -99,6 +100,17 @@ describe.skipIf(!testURL)('owner authentication against isolated PostgreSQL', ()
     // Only delete this suite's own synthetic owner; never truncate shared tables.
     if (ownerId) await database.query('DELETE FROM "user" WHERE id = $1 AND email = $2', [ownerId, email]);
     await database.end();
+  });
+
+  it('bootstraps only one administrator with a hashed password and no project data', async () => {
+    const administrators = await database.query('SELECT username,role FROM bridge_administrators WHERE workspace_owner_id=$1', [ownerId]);
+    expect(administrators.rows).toEqual([{ username: 'admin', role: 'platform' }]);
+    const accounts = await database.query(`SELECT password FROM account WHERE "userId"=$1 AND "providerId"='credential'`, [ownerId]);
+    expect(accounts.rowCount).toBe(1);
+    expect(accounts.rows[0].password).not.toBe(password);
+    expect(await verifyPassword({ hash: accounts.rows[0].password, password })).toBe(true);
+    const projects = await database.query('SELECT id FROM bridge_projects WHERE owner_id=$1', [ownerId]);
+    expect(projects.rowCount).toBe(0);
   });
 
   it('rejects public signup and repeated local bootstrap', async () => {

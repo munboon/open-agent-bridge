@@ -17,3 +17,11 @@ playwright-report/
 
 __pycache__/
 *.pyc
+
+# Installation data and credential-bearing downloads are never release source.
+*.dump
+*.sqlite
+*.sqlite3
+*.db
+bridge.config.json
+open-agent-bridge-*.zip

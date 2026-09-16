@@ -334,3 +334,5 @@ input::placeholder,textarea::placeholder { color:var(--color-on-surface-variant)
 .project-work-summary>div { flex:1; min-width:220px; }
 .project-work-summary h2 { margin:0 0 6px; font-size:1.1rem; }
 .project-work-summary p { margin:0; color:var(--color-on-surface-variant); font-size:.85rem; }
+.control-agent-table .control-row-actions { width:76px; min-width:76px; }
+.agent-actions-trigger { min-width:44px; min-height:44px; }

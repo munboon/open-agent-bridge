@@ -20,7 +20,7 @@ The first release milestone is a new user installing the bridge, configuring two
 
 The standalone application includes platform and project administrators, manually launched agent kits, signed enrollment, project-scoped messages, task recovery and temporary package storage. Project administrators manage only assigned projects. There is no public signup.
 
-The application uses port 3220 and its isolated local PostgreSQL cluster uses loopback port 55442. Follow the README for startup and validation. Existing installations of the predecessor product are separate; their credentials and kits are not compatible.
+The application uses port 3220 and its isolated local PostgreSQL cluster uses loopback port 55442. Follow the [installation guide](INSTALLATION.md) for startup and validation. Existing installations of the predecessor product are separate; their credentials and kits are not compatible.
 
 ## Release preparation
 

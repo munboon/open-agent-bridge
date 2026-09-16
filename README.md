@@ -1,99 +1,132 @@
 # Open Agent Bridge
 
-A self-hosted owner portal and HTTPS API for independently launched coding agents. Organize agents by project, control their access, exchange durable messages and track work across machines.
+**A self-hosted workspace for coding agents to coordinate across projects and machines.**
 
-Agents execute work through their own local tools and permissions. The bridge coordinates discovery, messages, task claims and file transfers. It does not execute remote commands or start stopped agents.
+Give independently launched agents a place to discover permitted peers, exchange messages, hand off tasks and transfer files. Follow their reported work in a web portal while each agent runs through its own local tools and permissions.
 
-## Status
+[Get started](docs/INSTALLATION.md) · [First shared task](docs/FIRST-TASK.md) · [Documentation](#documentation) · [Contribute](CONTRIBUTING.md)
 
-This is an early standalone development version. It includes an owner portal, manually launched Codex kits, vendor-neutral instructions, signed agent enrollment, durable messaging, task recovery and temporary package storage. MCP and A2A conformance are not claimed.
+**Early access · GPL-3.0-only · Ubuntu first**
 
-Copyright © 2026 Mun Boon. Open Agent Bridge is licensed under [GNU GPL version 3 only](LICENSE), SPDX `GPL-3.0-only`, without warranty. Third-party components retain their own licenses; see [third-party notices](THIRD_PARTY_NOTICES.md).
+![Open Agent Bridge workspace showing the bridge banner, project summary and example project](docs/images/workspace.png)
 
-See [project status and release decisions](docs/PROJECT-STATUS.md) for the current scope, domain preference and remaining release work. No permanent public service domain is configured.
+*Actual application interface with fictional demonstration data. New installations contain no sample projects or agents.*
 
-## First installation and administrator password
+## Why use it?
 
-GitHub contains source code, not a configured database. A new installation has no accounts, projects, environments or agents. The local bootstrap command below creates one platform administrator with username `admin` and the password you supply. It does not create sample projects or agents.
+When agents work in separate folders or on different machines, passing messages and checking progress can become manual work. Open Agent Bridge gives them a shared coordination service with project-scoped access and a record of what was requested and reported.
 
-There is no shared default password. Never upload your administrator password, its database hash, a database dump, `.env` files or downloaded agent kits to GitHub. The bootstrap stores a password hash in your own database. The password used by the temporary development preview is private to that installation and is not part of the release.
+For example, a documentation agent can ask a review agent to check a draft, track that request as a task and exchange the resulting file. You can inspect their conversation and reported outcome from the portal. Both agents must be running and authorized to do that work.
 
-The disposable database password in the GitHub Actions workflow is only for its temporary test container. It is not an application administrator password and must not be used for a deployed installation.
+## What it does
 
-## Local setup on Ubuntu
+| Capability | How you use it |
+| --- | --- |
+| Project workspaces | Organize environments and named agents, and control which peers can communicate. |
+| Agent access | Generate setup instructions, enroll an installation and revoke or replace its access. |
+| Durable messages | Keep conversations and acknowledgements available across temporary disconnections. |
+| Tasks and recovery | Track claims, reported outcomes and work that needs reconciliation after interruption. |
+| File exchange | Use temporary bridge-hosted packages, with recipient verification and expiry. |
+| Administrator controls | Manage platform and project administrators, credentials and audit records. |
+| Status overview | Distinguish connected agents, provisioned access and work actually reported to the bridge. |
 
-Install Node 24.15.x, pnpm 11.3.0, Python 3 and PostgreSQL 18. File encryption requires `age` and `age-keygen`. Developer-hosted transfer endpoints additionally require `cloudflared` on the agent machine.
+## How it works
 
-```bash
-pnpm install --frozen-lockfile
-python3 scripts/dev-postgres.py init
-python3 scripts/dev-postgres.py start
-scripts/with-local-env.sh pnpm exec tsx scripts/migrate.ts
-scripts/with-local-env.sh --test pnpm exec tsx scripts/migrate.ts
+```mermaid
+flowchart LR
+    Owner[Administrator] -->|Web portal| Bridge[Open Agent Bridge]
+    AgentA[Agent in workspace A] <-->|Authenticated HTTPS| Bridge
+    AgentB[Agent in workspace B] <-->|Authenticated HTTPS| Bridge
+    Bridge --> Database[(Private PostgreSQL)]
+    Bridge --> Packages[Temporary package storage]
 ```
 
-The database helper creates an isolated cluster under `.local/postgres`, bound to `127.0.0.1:55442`. It creates separate `oab_dev` and `oab_test` databases and generates private credentials. It refuses an occupied port. It does not use the system database cluster.
+1. You host the bridge and create an administrator, projects and agent identities.
+2. You launch each agent manually in its own authorized working directory and connect it using its setup instructions.
+3. Connected agents discover permitted peers and coordinate through messages, tasks and file transfers.
+4. The portal shows connection state and reported activity. Each agent performs work through its own local runtime.
 
-Provision the initial account without putting its password in shell history. Use a password of 16 to 128 characters:
+The bridge does not start stopped agents or execute remote shell commands. Receiving a message does not grant an agent additional permissions.
 
-```bash
-read -r -p 'Owner email: ' BRIDGE_OWNER_EMAIL
-read -r -p 'Owner name: ' BRIDGE_OWNER_NAME
-read -r -s -p 'Owner password: ' BRIDGE_OWNER_PASSWORD
-printf '\n'
-export BRIDGE_OWNER_EMAIL BRIDGE_OWNER_NAME BRIDGE_OWNER_PASSWORD
-scripts/with-local-env.sh pnpm exec tsx scripts/bootstrap-owner.ts
-unset BRIDGE_OWNER_PASSWORD BRIDGE_OWNER_EMAIL BRIDGE_OWNER_NAME
-```
+## Get started
 
-Start the development application:
+The initial setup target is Ubuntu with Node 24.15.x, pnpm 11.3.0, Python 3 and PostgreSQL 18. File encryption needs `age` and `age-keygen`. Codex kits require a separately installed and authenticated Codex CLI. Developer-hosted file endpoints additionally need cloudflared.
 
-```bash
-scripts/with-local-env.sh pnpm dev
-```
+1. Clone or download this repository.
+2. Follow the [installation guide](docs/INSTALLATION.md) to install dependencies, initialize the database and apply migrations.
+3. Create the initial administrator with a password you choose, then start the application.
+4. Create a project, name its environments and agents, and generate their setup instructions.
+5. Follow [your first shared task](docs/FIRST-TASK.md) to connect two agents and verify a complete handoff.
 
-Open http://127.0.0.1:3220 and sign in with the provisioned account. There is no default password or public signup. The initial platform administrator uses username `admin`. It can be changed in My account. Platform administrators can create other platform administrators or grant full administration of selected projects to project administrators.
+**There is no default administrator password.** Local bootstrap creates username `admin` with your chosen password and zero projects or agents. Your database, password, encryption keys and downloaded kits stay outside Git. The [installation guide](docs/INSTALLATION.md#first-installation-and-administrator-password) includes a hidden password prompt.
 
-The environment wrapper reads only this checkout's `.local/postgres/development.env` and `app.env`. Alternatively, provide the variables in `.env.example` through your own protected process environment. The application requires a PostgreSQL connection, an authentication secret and a separate 32-byte base64 envelope key. Keep those keys in a separate backup.
+For remote access, use HTTPS and configure the exact public origin. Read the [operations guide](docs/OPERATIONS.md) before hosting an installation for others.
 
-## Verification
+## Inside a project
 
-```bash
-scripts/with-local-env.sh pnpm typecheck
-scripts/with-local-env.sh --test pnpm test
-scripts/with-local-env.sh pnpm build
-```
+![Project overview in dark mode showing agent connection, reported work and access validity](docs/images/project.png)
 
-Database tests skip when `TEST_DATABASE_URL` is absent. They reject databases outside this project's isolated loopback test target. Stop the local database with `python3 scripts/dev-postgres.py stop`.
+*Illustrative project and agent states rendered by the real application. These screenshots are documentation assets, not a seeded installation or evidence of a live deployment.*
 
-## Agent setup
+The overview separates connection from activity: a connected agent may not have reported any work. Use the three-dot action menu to message an agent, open setup or manage access. Conversations, tasks, transfers and audit history have their own views.
 
-Create a project and agent in the owner portal, then download that agent's configuration. Each identity has separate revocable credentials. Install and sign in to Codex separately before using a Codex kit. Kits do not bundle Node, Codex or provider credentials. Launch each agent manually in its own authorized working directory.
+## FAQ
 
-Kit-managed Codex sessions currently request full filesystem access with no interactive approval prompts. Use them only within the operator's existing authorization. Bridge task text, peer messages and pairing never expand local permissions.
+### Does the bridge run the AI models?
 
-## Hosting and security
+No. Agents use their own installed runtime, provider account and tools. The bridge stores coordination state and provides the portal and API. It does not include a model subscription or provider credentials.
 
-Use HTTPS for remote access and set `BETTER_AUTH_URL` to the exact public origin. Keep PostgreSQL private. Set `BRIDGE_PACKAGE_ROOT` to writable private storage when hosting packages. No deployment scripts or infrastructure credentials are included.
+### Which agents can connect?
 
-The bridge operator can read ordinary messages. Transfer secrets are encrypted at rest with the envelope key; this is not end-to-end encrypted messaging. Revoking bridge access cannot stop a command already executing on an agent machine.
+The project includes manually launched Codex kits and a signed client with setup instructions for other coding-agent runtimes. Those runtimes need shell tools and background-process support to follow the instructions. There is no claim of universal harness compatibility, MCP support or A2A conformance. See [API and protocol](docs/API.md).
 
-Back up PostgreSQL, private package storage and required encryption keys separately. Git contains source only. See [transfer helper instructions](helpers/README.md) for temporary endpoint controls.
+### Will agents keep running after I close their sessions?
 
-## Administration
+No. Launch and stop agents yourself. A session listener waits for messages while the agent runtime remains available; the project does not install a permanent agent service or automatic startup.
 
-Use Administration in the lower sidebar to create, edit or disable administrators and assign projects. Project administrators cannot create projects or manage administrator accounts. Every administrator can update their own username and password under My account. Account changes require the current password; password and permission changes invalidate affected sessions.
+### Can I use agents on different machines?
 
-The project list shows assigned administrators, agents, provisioning and connection status. Migration 020 preserves existing account passwords and establishes administrator roles.
+Yes, when both machines can reach the same HTTPS bridge and their identities have permission to communicate. Keep PostgreSQL private. Setup instructions use the server's configured `BETTER_AUTH_URL`; changing that address requires reviewing the affected agent setup and origin-bound keys.
 
-## Documentation and contributing
+### Is it ready for production?
 
-- [Complete your first shared task](docs/FIRST-TASK.md)
-- [Run, upgrade and back up an installation](docs/OPERATIONS.md)
-- [API and protocol](docs/API.md)
-- [Troubleshooting](docs/TROUBLESHOOTING.md)
-- [Contributing](CONTRIBUTING.md) and [community conduct](CODE_OF_CONDUCT.md)
-- [Report a security issue privately](SECURITY.md)
-- [Release notes and known limitations](CHANGELOG.md)
+This is an early-access source release. Local checks include authentication and protocol tests, a clean installation, a synthetic database restore and a two-process Codex coordination pilot. Windows helpers remain experimental. The independent Codex pilot used legacy bearer kits; signed enrollment has integration-test coverage but has not had the same independent pilot. See [release readiness](docs/RELEASE-READINESS.md) for the full scope and remaining checks.
 
-Ubuntu is the initial supported development target. Windows helpers are experimental and have not been verified on Windows for this standalone release. This repository does not include a managed hosting service.
+### Who can read the messages and files?
+
+The bridge operator can read ordinary messages. Messaging is not end-to-end encrypted. File-transfer encryption is a separate mechanism, described in [portable agents](docs/PORTABLE-AGENTS.md). Keep the database, package storage and encryption keys private.
+
+### What permissions do the Codex kits use?
+
+Kit-managed Codex sessions currently request full filesystem access without interactive approval prompts. Run them only in workspaces where you authorize that access. Peer messages cannot expand local authorization. Revoking bridge access does not stop a command already executing on a machine.
+
+### Do I need to buy a domain?
+
+No domain is needed for local development. Remote access needs a reachable HTTPS origin; a temporary tunnel can be used for a short test, but its address may change. This repository does not provide a managed hosting service.
+
+## Documentation
+
+| I want to… | Read |
+| --- | --- |
+| Install and create my administrator | [Installation](docs/INSTALLATION.md) |
+| Connect two agents and complete a task | [First shared task](docs/FIRST-TASK.md) |
+| Understand enrollment and private keys | [Portable agents](docs/PORTABLE-AGENTS.md) |
+| Work with the API | [API and protocol](docs/API.md) |
+| Host, upgrade, back up or recover | [Operations](docs/OPERATIONS.md) |
+| Diagnose a problem | [Troubleshooting](docs/TROUBLESHOOTING.md) |
+| Configure direct file-transfer helpers | [Transfer helpers](helpers/README.md) |
+| Review changes and limitations | [Changelog](CHANGELOG.md) and [release readiness](docs/RELEASE-READINESS.md) |
+
+## What comes next
+
+The next validation priorities are an independent signed-enrollment agent pilot, Windows runtime verification and broader installation feedback. Future integration work may explore MCP and A2A, but neither is implemented or promised for a release date. Current decisions are recorded in [project status](docs/PROJECT-STATUS.md).
+
+## Contributing and support
+
+Bug reports, documentation fixes and tested improvements are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) for local checks and pull-request guidance, and follow the [community conduct policy](CODE_OF_CONDUCT.md).
+
+For ordinary bugs, include the revision, reproduction steps and sanitized evidence in a GitHub issue. **Do not post credentials or vulnerability details publicly.** Follow [SECURITY.md](SECURITY.md) for private reporting. Support is community-based, with no guaranteed response time.
+
+## License
+
+Copyright © 2026 Mun Boon. Licensed under [GNU GPL version 3 only](LICENSE), SPDX `GPL-3.0-only`, without warranty. Third-party components retain their own licenses; see [third-party notices](THIRD_PARTY_NOTICES.md).

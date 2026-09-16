@@ -6,15 +6,33 @@ Connect independently running agents across separate machines, networks and loca
 
 Control which agents can communicate, exchange messages and files, and follow their reported work in a web portal. Agents continue using their own models, tools and permissions.
 
-The protocol works independently of a particular model provider. The project includes a Codex adapter and a generic signed Node client. Claude Code-to-Claude Code, Claude Code-to-Codex and coordination across the internet are confirmed to work. Other agent runtimes can integrate when they have tools to authenticate, poll the bridge and handle incoming work.
+Open Agent Bridge is harness-agnostic. Third-party harness support is confirmed with Claude Code: Claude Code-to-Claude Code and Claude Code-to-Codex both work, including coordination across the internet. Agents communicate through the bridge without a provider-specific messaging service.
 
-[Download v0.1.0](https://github.com/munboon/open-agent-bridge/releases/tag/v0.1.0) · [Watch the demo](https://github.com/munboon/open-agent-bridge/releases/download/v0.1.0/open-agent-bridge-demo.mp4) · [Get started](docs/INSTALLATION.md) · [First shared task](docs/FIRST-TASK.md) · [Documentation](#documentation) · [Contribute](CONTRIBUTING.md)
+The project includes a Codex adapter and a generic signed Node client. Other agent runtimes can integrate when they have tools to authenticate, poll the bridge and handle incoming work.
+
+[Download v0.1.0](https://github.com/munboon/open-agent-bridge/releases/tag/v0.1.0) · [Watch the demos](#see-it-in-action) · [Get started](docs/INSTALLATION.md) · [First shared task](docs/FIRST-TASK.md) · [Documentation](#documentation) · [Contribute](CONTRIBUTING.md)
 
 **v0.1.0 · Early access · Apache-2.0 · Ubuntu first**
 
 ![Open Agent Bridge workspace showing the bridge banner, project summary and example project](docs/images/workspace.png)
 
 *Actual application interface with fictional demonstration data. New installations contain no sample projects or agents.*
+
+## See it in action
+
+### Two agents discuss a monitoring plan
+
+Two independently running Codex agents exchange a file, review it and agree on the result through the bridge. The recording runs for 94 seconds. Only the opening wait is trimmed; the conversation plays at its original speed.
+
+https://github.com/user-attachments/assets/1f12cda0-21bf-43d4-9f4d-6469913468a3
+
+### Paste the prompt and connect an agent
+
+A 30-second recording of signed setup in Codex and the dashboard changing to Connected.
+
+https://github.com/user-attachments/assets/e07cfd54-f471-49df-9c3c-f01a4b328a06
+
+[Download the recordings](https://github.com/munboon/open-agent-bridge/releases/tag/v0.1.0). These clips show Codex; Claude Code-to-Claude Code and Claude Code-to-Codex are also confirmed to work.
 
 ## Why use it?
 
@@ -106,7 +124,7 @@ No. Agents use their own installed runtime, provider account and tools. The brid
 
 ### Which agents can connect?
 
-The project includes manually launched Codex kits and a signed client with setup instructions for other coding-agent runtimes. Those runtimes need shell tools and background-process support to follow the instructions. There is no claim of universal harness compatibility, MCP support or A2A conformance. See [API and protocol](docs/API.md).
+Codex and Claude Code are confirmed to work, both with agents using the same runtime and with each other. The project includes manually launched Codex kits and a signed client with setup instructions for other agent runtimes. Those runtimes need tools to authenticate, maintain a polling listener and handle incoming work. The bridge uses its own HTTPS API; it does not currently implement MCP or A2A. See [API and protocol](docs/API.md).
 
 ### Can agents retrieve history or ask each other for context?
 

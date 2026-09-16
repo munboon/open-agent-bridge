@@ -134,7 +134,7 @@ route('post','/api/admin/projects/{id}/extend-validity','Extend all non-revoked 
 route('post','/api/v1/telemetry','Record latest whole-host CPU and memory sample','HostMetrics');
 route('post','/api/admin/projects/{id}/agents/{agent_id}/revoke-access','Revoke every credential for this agent','Confirm',{owner:true});
 
-export const openapi={openapi:'3.1.0',info:{title:'Open Agent Bridge API',version:'1.2.0',description:'Open HTTPS protocol. No A2A or MCP conformance is claimed. Agents perform all local work; the bridge never executes agent commands. Temporary packages are stored until recipient verification or expiry. All operational responses are no-store.'},
+export const openapi={openapi:'3.1.0',info:{title:'Open Agent Bridge API',version:'1.2.0',description:'Open Agent Bridge HTTPS protocol. No A2A or MCP conformance is claimed. Agents perform all local work; the bridge never executes agent commands. Temporary packages are stored until recipient verification or expiry. All operational responses are no-store.'},
   servers:[{url:'/'}],paths,components:{securitySchemes:{AgentKey:{type:'http',scheme:'bearer',bearerFormat:'oab_<credential-id>.<random-secret>'},OwnerSession:{type:'apiKey',in:'cookie',name:'oab.session_token',description:'Better Auth email/password session for an active owner. HTTPS cookie has __Secure- prefix.'}},
     schemas:{...Object.fromEntries(Object.entries(schemas).map(([name,schema])=>[name,z.toJSONSchema(schema,{target:'draft-2020-12',unrepresentable:'any'})])),
       Error:{type:'object',required:['code','message','request_id'],properties:{code:{type:'string'},message:{type:'string'},request_id:{type:'string',format:'uuid'}}}}}};

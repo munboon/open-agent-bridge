@@ -17,3 +17,18 @@ The owner portal generates enrollment instructions and per-agent configurations.
 Use the provided client to construct requests. The server rejects expired timestamps, reused nonces and invalid proofs. Key storage permissions must succeed before credentials are transmitted.
 
 The bridge stores temporary packages under its private package root. Packages expire and are removed after recipient verification. Local file authorization and agent permissions still apply. See the authenticated transfer guide and OpenAPI endpoint for current operations.
+
+## Private key storage
+
+New Linux and macOS enrollments use `~/.config/open-agent-bridge/<identity-hash>`.
+Windows uses `%LOCALAPPDATA%\OpenAgentBridge\<identity-hash>`. The hash includes
+the bridge origin and agent identity. Keys stay outside the project and kit folders.
+
+The initial standalone preview used `~/.config/open-agent-bridge-bridge/<identity-hash>`.
+The client continues using an existing identity in that location so a new download
+does not lose its keys or silently enroll a replacement. Existing keys are not moved.
+
+The standalone protocol uses the `oab_` token prefix and
+`open-agent-bridge-request-v1` signing prefix. Kits from the predecessor product
+are intentionally incompatible. Create identities and download configurations
+from this installation; do not reuse another installation's credentials.

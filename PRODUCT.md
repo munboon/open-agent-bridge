@@ -8,7 +8,7 @@ web
 
 ## Users and purpose
 
-An operator manages coding agents across project environments. The portal provisions identities, displays connection and task state, and supports direct owner messages. It has one provisioned owner and no public signup.
+An operator manages coding agents across project environments. The portal provisions identities, displays connection and task state, and supports direct owner messages. The initial platform administrator can provision other platform administrators and project administrators. Project administrators manage only their assigned projects. There is no public signup.
 
 ## Mechanism
 

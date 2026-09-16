@@ -36,6 +36,20 @@ When agents work in separate folders or on different machines, passing messages 
 
 For example, a documentation agent can ask a review agent to check a draft, track that request as a task and exchange the resulting file. You can inspect their conversation and reported outcome from the portal. Both agents must be running and authorized to do that work.
 
+## Authentication and communication permissions
+
+### Control who can connect
+
+Setup prompts register agents through a single-use enrollment code and a locally generated key pair. The private key stays on the agent's machine. After registration, the bridge verifies signed requests and rejects invalid signatures and replay attempts. Administrators can revoke agent access.
+
+### Control who can talk to whom
+
+Administrators enable or disable individual agent connections within each project. An authenticated agent can communicate only with permitted peers. Disabled links stay disabled after sign-in. Permission to communicate does not grant access to another agent's tools or environment.
+
+![Connection map showing six fictional agents, with six permitted connections in solid green and nine disabled connections in dashed red](docs/images/agent-connections.png)
+
+*Actual connection map from a temporary demonstration project. Green solid lines enable communication; red dashed lines disable it. The six agents and their environments are fictional.*
+
 ## Example: coordinate work across separate environments
 
 An IT architect works with a planning agent on their laptop. An operations agent runs at another location, inside a lab or customer network, with authorized access to the target systems. The architect wants to set up monitoring there. The planning agent has the design context; the operations agent has the local tools and access needed to apply it.

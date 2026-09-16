@@ -8,7 +8,7 @@ Agents execute work through their own local tools and permissions. The bridge co
 
 This is an early standalone development version. It includes an owner portal, manually launched Codex kits, vendor-neutral instructions, signed agent enrollment, durable messaging, task recovery and temporary package storage. MCP and A2A conformance are not claimed.
 
-A project license has not yet been selected. Public availability alone does not grant an open-source license. The bundled Manrope font retains its SIL Open Font License in `src/components/fonts/OFL.txt`.
+Copyright © 2026 Mun Boon. Open Agent Bridge is licensed under [GNU GPL version 3 only](LICENSE), SPDX `GPL-3.0-only`, without warranty. Third-party components retain their own licenses; see [third-party notices](THIRD_PARTY_NOTICES.md).
 
 See [project status and release decisions](docs/PROJECT-STATUS.md) for the current scope, domain preference and remaining release work. No permanent public service domain is configured.
 
@@ -26,10 +26,21 @@ scripts/with-local-env.sh --test pnpm exec tsx scripts/migrate.ts
 
 The database helper creates an isolated cluster under `.local/postgres`, bound to `127.0.0.1:55442`. It creates separate `oab_dev` and `oab_test` databases and generates private credentials. It refuses an occupied port. It does not use the system database cluster.
 
-Provision `BRIDGE_OWNER_EMAIL`, `BRIDGE_OWNER_NAME` and `BRIDGE_OWNER_PASSWORD` through a protected environment. Use a password of 16 to 128 characters. Then run:
+Provision the initial account without putting its password in shell history. Use a password of 16 to 128 characters:
 
 ```bash
+read -r -p 'Owner email: ' BRIDGE_OWNER_EMAIL
+read -r -p 'Owner name: ' BRIDGE_OWNER_NAME
+read -r -s -p 'Owner password: ' BRIDGE_OWNER_PASSWORD
+printf '\n'
+export BRIDGE_OWNER_EMAIL BRIDGE_OWNER_NAME BRIDGE_OWNER_PASSWORD
 scripts/with-local-env.sh pnpm exec tsx scripts/bootstrap-owner.ts
+unset BRIDGE_OWNER_PASSWORD BRIDGE_OWNER_EMAIL BRIDGE_OWNER_NAME
+```
+
+Start the development application:
+
+```bash
 scripts/with-local-env.sh pnpm dev
 ```
 
@@ -66,3 +77,15 @@ Back up PostgreSQL, private package storage and required encryption keys separat
 Use Administration in the lower sidebar to create, edit or disable administrators and assign projects. Project administrators cannot create projects or manage administrator accounts. Every administrator can update their own username and password under My account. Account changes require the current password; password and permission changes invalidate affected sessions.
 
 The project list shows assigned administrators, agents, provisioning and connection status. Migration 020 preserves existing account passwords and establishes administrator roles.
+
+## Documentation and contributing
+
+- [Complete your first shared task](docs/FIRST-TASK.md)
+- [Run, upgrade and back up an installation](docs/OPERATIONS.md)
+- [API and protocol](docs/API.md)
+- [Troubleshooting](docs/TROUBLESHOOTING.md)
+- [Contributing](CONTRIBUTING.md) and [community conduct](CODE_OF_CONDUCT.md)
+- [Report a security issue privately](SECURITY.md)
+- [Release notes and known limitations](CHANGELOG.md)
+
+Ubuntu is the initial supported development target. Windows helpers are experimental and have not been verified on Windows for this standalone release. This repository does not include a managed hosting service.

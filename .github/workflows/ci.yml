@@ -1,0 +1,62 @@
+name: Checks
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: oab_test
+          POSTGRES_PASSWORD: disposable-ci-password
+          POSTGRES_DB: oab_test
+        ports:
+          - 55442:5432
+        options: >-
+          --health-cmd "pg_isready -U oab_test -d oab_test"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      DATABASE_URL: postgresql://oab_test:disposable-ci-password@127.0.0.1:55442/oab_test
+      TEST_DATABASE_URL: postgresql://oab_test:disposable-ci-password@127.0.0.1:55442/oab_test
+      BETTER_AUTH_URL: http://127.0.0.1:3220
+      NEXT_TELEMETRY_DISABLED: '1'
+      AGE_BINARY: /usr/bin/age
+      AGE_KEYGEN_BINARY: /usr/bin/age-keygen
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24.15.0
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+        with:
+          version: 11.3.0
+      - name: Install encryption tools and generate temporary secrets
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y age
+          echo "BETTER_AUTH_SECRET=$(openssl rand -hex 48)" >> "$GITHUB_ENV"
+          echo "BRIDGE_ENVELOPE_KEY=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec tsx scripts/migrate.ts
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+      - run: pnpm audit --audit-level=moderate
+  secrets:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - name: Scan Git history for secrets
+        run: |
+          curl --fail --silent --show-error --location https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz --output "$RUNNER_TEMP/gitleaks.tar.gz"
+          echo "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  $RUNNER_TEMP/gitleaks.tar.gz" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/gitleaks.tar.gz" -C "$RUNNER_TEMP" gitleaks
+          "$RUNNER_TEMP/gitleaks" git . --redact --log-opts="--all"

@@ -2,7 +2,7 @@
   {
     "name": "@better-auth/core",
     "versions": [
-      "1.7.3"
+      "1.7.4"
     ],
     "license": "MIT",
     "homepage": "https://www.better-auth.com",
@@ -11,7 +11,7 @@
   {
     "name": "@better-auth/drizzle-adapter",
     "versions": [
-      "1.7.3"
+      "1.7.4"
     ],
     "license": "MIT",
     "homepage": "https://www.better-auth.com/docs/adapters/drizzle",
@@ -20,7 +20,7 @@
   {
     "name": "@better-auth/kysely-adapter",
     "versions": [
-      "1.7.3"
+      "1.7.4"
     ],
     "license": "MIT",
     "homepage": "https://www.better-auth.com/docs/adapters/kysely",
@@ -29,7 +29,7 @@
   {
     "name": "@better-auth/memory-adapter",
     "versions": [
-      "1.7.3"
+      "1.7.4"
     ],
     "license": "MIT",
     "homepage": "https://www.better-auth.com",
@@ -38,7 +38,7 @@
   {
     "name": "@better-auth/mongo-adapter",
     "versions": [
-      "1.7.3"
+      "1.7.4"
     ],
     "license": "MIT",
     "homepage": "https://www.better-auth.com/docs/adapters/mongodb",
@@ -47,7 +47,7 @@
   {
     "name": "@better-auth/prisma-adapter",
     "versions": [
-      "1.7.3"
+      "1.7.4"
     ],
     "license": "MIT",
     "homepage": "https://www.better-auth.com/docs/adapters/prisma",
@@ -56,7 +56,7 @@
   {
     "name": "@better-auth/telemetry",
     "versions": [
-      "1.7.3"
+      "1.7.4"
     ],
     "license": "MIT",
     "homepage": "https://www.better-auth.com",
@@ -157,7 +157,7 @@
   {
     "name": "@next/env",
     "versions": [
-      "16.3.4"
+      "16.3.5"
     ],
     "license": "MIT",
     "homepage": "https://github.com/vercel/next.js#readme",
@@ -166,7 +166,7 @@
   {
     "name": "@next/swc-linux-x64-gnu",
     "versions": [
-      "16.3.4"
+      "16.3.5"
     ],
     "license": "MIT",
     "homepage": "https://github.com/vercel/next.js#readme",
@@ -283,7 +283,8 @@
   {
     "name": "@types/node",
     "versions": [
-      "24.13.3"
+      "24.13.3",
+      "24.13.4"
     ],
     "license": "MIT",
     "homepage": "https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/node",
@@ -301,7 +302,7 @@
   {
     "name": "@types/react",
     "versions": [
-      "19.2.18"
+      "19.3.0"
     ],
     "license": "MIT",
     "homepage": "https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/react",
@@ -310,7 +311,7 @@
   {
     "name": "@types/react-dom",
     "versions": [
-      "19.2.7"
+      "19.3.0"
     ],
     "license": "MIT",
     "homepage": "https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/react-dom",
@@ -418,7 +419,7 @@
   {
     "name": "better-auth",
     "versions": [
-      "1.7.3"
+      "1.7.4"
     ],
     "license": "MIT",
     "homepage": "https://better-auth.com",
@@ -644,7 +645,7 @@
   {
     "name": "next",
     "versions": [
-      "16.3.4"
+      "16.3.5"
     ],
     "license": "MIT",
     "homepage": "https://nextjs.org",
@@ -861,7 +862,7 @@
   {
     "name": "react",
     "versions": [
-      "19.2.8"
+      "19.3.0"
     ],
     "license": "MIT",
     "homepage": "https://react.dev/",
@@ -870,7 +871,7 @@
   {
     "name": "react-dom",
     "versions": [
-      "19.2.8"
+      "19.3.0"
     ],
     "license": "MIT",
     "homepage": "https://react.dev/",
@@ -925,7 +926,7 @@
   {
     "name": "scheduler",
     "versions": [
-      "0.27.0"
+      "0.28.0"
     ],
     "license": "MIT",
     "homepage": "https://react.dev/",
@@ -1159,7 +1160,8 @@
   {
     "name": "zod",
     "versions": [
-      "4.5.4"
+      "4.5.4",
+      "4.6.4"
     ],
     "license": "MIT",
     "homepage": "https://zod.dev",

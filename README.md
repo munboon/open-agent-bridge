@@ -2,7 +2,9 @@
 
 **A self-hosted, harness-agnostic bridge for agents to communicate across models, workspaces and machines.**
 
-Give independently launched agents a place to discover permitted peers, exchange messages, hand off tasks and transfer files. Follow their reported work in a web portal while each agent runs through its own local tools and permissions.
+Connect independently running agents across separate machines, networks and locations, including over the internet. Agents coordinate through Open Agent Bridge without relying on a model provider's built-in teammate or messaging features. Each agent needs a compatible bridge client and HTTPS access to your bridge instance.
+
+Control which agents can communicate, exchange messages and files, and follow their reported work in a web portal. Agents continue using their own models, tools and permissions.
 
 The HTTPS protocol does not depend on a particular model or harness. Agents using different models or runtimes can communicate when each has a compatible client and follows the bridge protocol. Codex has a supplied adapter; other harnesses need the signed client or their own integration. Cross-harness compatibility depends on that integration and is not universally tested.
 
@@ -20,19 +22,22 @@ When agents work in separate folders or on different machines, passing messages 
 
 For example, a documentation agent can ask a review agent to check a draft, track that request as a task and exchange the resulting file. You can inspect their conversation and reported outcome from the portal. Both agents must be running and authorized to do that work.
 
-## Example: develop, deploy and iterate in a lab
+## Example: coordinate work across separate environments
 
-A developer works on an application while a separately launched deployment agent has authorized access to a lab environment. Both agents connect to the same Open Agent Bridge project with their own credentials.
+An IT architect works with a planning agent on their laptop. An operations agent runs at another location, inside a lab or customer network, with authorized access to the target systems. The architect wants to set up monitoring there. The planning agent has the design context; the operations agent has the local tools and access needed to apply it.
 
-1. The developer asks their coding agent to coordinate a deployment and defines the target, acceptance checks and allowed changes.
-2. The coding agent asks the deployment agent to check the environment and report readiness or blockers.
-3. Once the build is ready, the agents exchange the package and verify receipt. The deployment agent uses its local tools to deploy within the agreed scope.
-4. The deployment agent runs the requested health checks and smoke tests, then returns results and relevant logs with secrets removed.
-5. If a check fails, the coding agent fixes the application and sends a revised build. The deployment agent can fix environment issues within its authorization, then rerun the checks and report back.
+Both agents connect over HTTPS to the same Open Agent Bridge instance using separate credentials. The planning agent can coordinate the work without direct administrative access to the remote systems or a shared agent runtime.
 
-The developer follows the conversation and reported work in the portal. Agents can retrieve retained bridge history to recover the context of an earlier attempt. The cycle continues until the acceptance checks pass or the agents report a blocker that needs the developer's decision.
+1. The architect defines the goal, allowed changes and checks that will confirm the setup works. The planning agent sends its architecture and configuration notes to the operations agent through the bridge.
+2. The operations agent inspects the environment and reports existing software, missing prerequisites or constraints. The agents exchange questions and revise the plan before applying changes.
+3. The operations agent installs or configures the software using its own tools. Depending on its runtime and permissions, these might include SSH, APIs, command-line tools or visual interaction with an administration interface.
+4. It checks the result and returns relevant logs, screenshots or test findings with secrets removed. If something fails, the agents exchange findings, adjust the plan or configuration and repeat the checks within the agreed scope.
 
-Each agent must be running with the required tools and permissions. The bridge coordinates messages, tasks and files; deployment, rollback and local execution remain the responsibility of the agents and their authorized tools. This illustrates an intended workflow, not a claim that every deployment platform has been tested.
+The architect follows their conversation and reported work in the portal. Agents can retrieve retained bridge messages to recover earlier decisions or ask a permitted peer for missing context. Work outside their authorization needs the architect's decision.
+
+The owner manages which agents can communicate through the bridge and can block a pairing or revoke access. Project boundaries keep unrelated agents separate. Each agent's local permissions still govern its actions on the target systems.
+
+This example illustrates coordination between environments with different tools and access. The bridge carries messages, tasks and files; the agents supply remote access and execution tools. Compatibility depends on each agent's integration with the bridge.
 
 ## What it does
 
@@ -48,9 +53,9 @@ Each agent must be running with the required tools and permissions. The bridge c
 
 ## How it works
 
-![Architecture overview: independently launched agents and an administrator connect to Open Agent Bridge, backed by private PostgreSQL and temporary package storage](docs/images/architecture.png)
+![An architect and planning agent on one laptop coordinate over HTTPS with an operations agent in a remote environment through Open Agent Bridge. The operations agent uses its own tools to access target systems; bridge storage stays private.](docs/images/architecture.png)
 
-[Open the standalone diagram](docs/images/architecture.html).
+[View the full-size diagram](docs/images/architecture.png) · [Standalone HTML source](docs/images/architecture.html).
 
 1. You host the bridge and create an administrator, projects and agent identities.
 2. You launch each agent manually in its own authorized working directory and connect it using its setup instructions.

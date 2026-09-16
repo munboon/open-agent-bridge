@@ -1,0 +1,77 @@
+{
+  "date": "2026-09-16",
+  "kind": "edited transcript replay",
+  "agents": "Two independent Codex sessions",
+  "authentication": "Legacy bearer adapter",
+  "file_transport": "Legacy direct HTTPS transfer, coordinated through bridge metadata and receipts",
+  "duration_seconds": 111,
+  "file_sha256": "f969d488b2e00109c60ceffbb28c45de0d3575b8316af7e5eb864315303537bf",
+  "events": [
+    {
+      "seconds": 0.3,
+      "role": "Planning agent",
+      "type": "connected",
+      "text": "Connected with its own bridge identity."
+    },
+    {
+      "seconds": 0.5,
+      "role": "Review agent",
+      "type": "connected",
+      "text": "Connected with its own bridge identity."
+    },
+    {
+      "seconds": 0.5,
+      "role": "Owner",
+      "type": "request",
+      "text": "Send the monitoring plan to the review agent. Ask it to check the alert delay and recovery policy, then report the result."
+    },
+    {
+      "seconds": 36.6,
+      "role": "Planning agent",
+      "type": "task",
+      "text": "Review fictional monitoring alert delay and recovery policy"
+    },
+    {
+      "seconds": 72.9,
+      "role": "Planning agent",
+      "type": "message",
+      "text": "Transfer 7e87de04-54f3-44f5-a80d-3d85f818173a is hosted and ready. Use bridge_transfer receive with path received/monitoring-plan.md and this transfer_id. Verify, read, and report findings for task 67c7c2d1-4e77-4a9a-82a3-84938de65b19. I will close the endpoint after verified receipt."
+    },
+    {
+      "seconds": 74.8,
+      "role": "Review agent",
+      "type": "file-verified",
+      "text": "verified: monitoring-plan.md; SHA-256 f969d488b2e00109c60ceffbb28c45de0d3575b8316af7e5eb864315303537bf"
+    },
+    {
+      "seconds": 75.6,
+      "role": "Planning agent",
+      "type": "message",
+      "text": "Review task assigned and file hosted for verified download. Awaiting the Review agent’s findings; I’ll close the endpoint after verification."
+    },
+    {
+      "seconds": 93,
+      "role": "Review agent",
+      "type": "completed",
+      "text": "Verified received/monitoring-plan.md: 258 bytes, SHA-256 f969d488b2e00109c60ceffbb28c45de0d3575b8316af7e5eb864315303537bf. At a 30-second interval, 3 consecutive failed checks trigger about 60–90 seconds after an outage starts, excluding check duration and notification latency (60 seconds from the first failed check). Two consecutive successful checks would confirm recovery about 30–60 seconds after service recovery (30 seconds from the first success). The text does not say recovery successes must be consecutive; specify consecutive successes, reset the success counter on failure, reset the failure counter on success, and send recovery only for an active incident. Define probe timeout, failure criteria, repeat-alert suppression and behavior during flapping. These thresholds filter brief glitches but delay detection and recovery; accept them against the fictional service's response target. No installs or service changes. Verified receipt is reported; close the temporary endpoint."
+    },
+    {
+      "seconds": 93,
+      "role": "Review agent",
+      "type": "message",
+      "text": "Verified received/monitoring-plan.md: 258 bytes, SHA-256 f969d488b2e00109c60ceffbb28c45de0d3575b8316af7e5eb864315303537bf. At a 30-second interval, 3 consecutive failed checks trigger about 60–90 seconds after an outage starts, excluding check duration and notification latency (60 seconds from the first failed check). Two consecutive successful checks would confirm recovery about 30–60 seconds after service recovery (30 seconds from the first success). The text does not say recovery successes must be consecutive; specify consecutive successes, reset the success counter on failure, reset the failure counter on success, and send recovery only for an active incident. Define probe timeout, failure criteria, repeat-alert suppression and behavior during flapping. These thresholds filter brief glitches but delay detection and recovery; accept them against the fictional service's response target. No installs or service changes. Verified receipt is reported; close the temporary endpoint."
+    },
+    {
+      "seconds": 93.6,
+      "role": "Bridge",
+      "type": "verified",
+      "text": "Recipient verified the file. Independent SHA-256 comparison passed. Review task completed."
+    },
+    {
+      "seconds": 111,
+      "role": "Planning agent",
+      "type": "message",
+      "text": "Review completed. Review agent received and hash-verified the 258-byte file. Alert delay is about 60–90 seconds after outage onset, excluding probe and notification latency. Recovery would take about 30–60 seconds if successes are consecutive; the plan should explicitly require this, define counter resets, and send recovery only for active incidents. Also define probe timeout, failure criteria, repeat-alert suppression and flapping behavior. Temporary endpoint closed successfully. No services installed or modified."
+    }
+  ]
+}

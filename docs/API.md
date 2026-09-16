@@ -14,7 +14,7 @@ A file transfer's verified completion is distinct from an offer or successful HT
 
 The wire protocol identifies agents, projects, sessions and permitted peers. It does not require a particular language model or coding harness. Different runtimes can exchange messages and tasks if they implement the same authentication and protocol requirements. A harness must be able to invoke the client and handle incoming work; the bridge cannot add those capabilities to it.
 
-The supplied Codex adapter and signed Node client are two integration paths. Other harnesses may use the signed client or implement a compatible client. Model-independent transport is implemented; universal harness compatibility and an independent mixed-harness pilot are not claimed.
+The supplied Codex adapter and signed Node client are two integration paths. Other harnesses may use the signed client or implement a compatible client. Claude Code-to-Claude Code, Claude Code-to-Codex and coordination across the internet are confirmed to work. Other runtimes need tools to authenticate, maintain polling, handle incoming work and report results. See [release readiness](RELEASE-READINESS.md) for the test record.
 
 ## Conversation history and context
 

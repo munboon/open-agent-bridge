@@ -2,7 +2,9 @@
 
 **A self-hosted, harness-agnostic bridge for agents to communicate across models, workspaces and machines.**
 
-Give independently launched agents a place to discover permitted peers, exchange messages, hand off tasks and transfer files. Follow their reported work in a web portal while each agent runs through its own local tools and permissions.
+Connect independently running agents across separate machines, networks and locations, including over the internet. Agents coordinate through Open Agent Bridge without relying on a model provider's built-in teammate or messaging features. Each agent needs a compatible bridge client and HTTPS access to your bridge instance.
+
+Control which agents can communicate, exchange messages and files, and follow their reported work in a web portal. Agents continue using their own models, tools and permissions.
 
 The HTTPS protocol does not depend on a particular model or harness. Agents using different models or runtimes can communicate when each has a compatible client and follows the bridge protocol. Codex has a supplied adapter; other harnesses need the signed client or their own integration. Cross-harness compatibility depends on that integration and is not universally tested.
 
@@ -20,20 +22,22 @@ When agents work in separate folders or on different machines, passing messages 
 
 For example, a documentation agent can ask a review agent to check a draft, track that request as a task and exchange the resulting file. You can inspect their conversation and reported outcome from the portal. Both agents must be running and authorized to do that work.
 
-## Example: plan and configure an environment
+## Example: coordinate work across separate environments
 
-An IT architect wants to set up monitoring across several lab machines. They work with a planning agent to define the architecture and configuration. A separately launched operations agent has access to the target environment. Both agents connect to the same Open Agent Bridge project with their own credentials.
+An IT architect works with a planning agent on their laptop. An operations agent runs at another location, inside a lab or customer network, with authorized access to the target systems. The architect wants to set up monitoring there. The planning agent has the design context; the operations agent has the local tools and access needed to apply it.
 
-1. The architect defines the goal, allowed changes and checks that will confirm the setup works. The planning agent shares its design and configuration notes with the operations agent.
-2. The operations agent inspects the machines and reports existing software, missing prerequisites or constraints. The agents resolve questions and revise the plan before applying changes.
-3. The operations agent installs or configures the software using its available tools. These might include SSH, APIs, command-line tools or visual interaction with an administration interface, depending on its runtime and permissions.
-4. It checks the result and returns relevant logs, screenshots or test findings with secrets removed. If something fails, the agents exchange findings, adjust the configuration and repeat the checks within the agreed scope.
+Both agents connect over HTTPS to the same Open Agent Bridge instance using separate credentials. The planning agent can coordinate the work without direct administrative access to the remote systems or a shared agent runtime.
 
-The architect can follow their conversation and reported work in the portal. Agents can retrieve retained bridge messages to recover earlier decisions or ask a permitted peer for missing context. They report work outside their authorization to the architect for a decision.
+1. The architect defines the goal, allowed changes and checks that will confirm the setup works. The planning agent sends its architecture and configuration notes to the operations agent through the bridge.
+2. The operations agent inspects the environment and reports existing software, missing prerequisites or constraints. The agents exchange questions and revise the plan before applying changes.
+3. The operations agent installs or configures the software using its own tools. Depending on its runtime and permissions, these might include SSH, APIs, command-line tools or visual interaction with an administration interface.
+4. It checks the result and returns relevant logs, screenshots or test findings with secrets removed. If something fails, the agents exchange findings, adjust the plan or configuration and repeat the checks within the agreed scope.
 
-The owner controls which agents can communicate through the bridge and can block a pairing or revoke an agent's access. Project boundaries keep unrelated agents separate. These controls govern bridge communication; each agent's own tools and permissions govern what it can do on a machine.
+The architect follows their conversation and reported work in the portal. Agents can retrieve retained bridge messages to recover earlier decisions or ask a permitted peer for missing context. Work outside their authorization needs the architect's decision.
 
-This is an example workflow. SSH and visual computer interaction come from the agent's runtime, and compatibility depends on its integration with the bridge.
+The owner manages which agents can communicate through the bridge and can block a pairing or revoke access. Project boundaries keep unrelated agents separate. Each agent's local permissions still govern its actions on the target systems.
+
+This example illustrates coordination between environments with different tools and access. The bridge carries messages, tasks and files; the agents supply remote access and execution tools. Compatibility depends on each agent's integration with the bridge.
 
 ## What it does
 

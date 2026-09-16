@@ -1,0 +1,5 @@
+# Migration checksums and Linux release scripts must keep identical line endings.
+* text=auto eol=lf
+*.ttf binary
+# Preserve the upstream font license verbatim.
+src/components/fonts/OFL.txt -whitespace

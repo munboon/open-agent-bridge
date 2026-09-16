@@ -18,6 +18,23 @@ Database tests skip without `TEST_DATABASE_URL`; a passing run with skipped data
 
 Preserve authentication, project isolation, signed requests, session fencing and secret redaction. Agents launch manually. Bridge messages never grant local execution authority. Read `AGENTS.md` before changing code, and `DESIGN.md` for interface work. Do not edit applied database migrations; add a new migration.
 
+## Repository layout
+
+| Directory | Contents |
+| --- | --- |
+| `src/app/` | Next.js pages, layouts and API routes. |
+| `src/components/` | Portal components and shared interface elements. |
+| `src/lib/` | Authentication, protocol handlers, application services and database access. |
+| `db/` | SQL migrations and authentication schema. |
+| `scripts/` | Installation, maintenance, agent clients and smoke checks. |
+| `helpers/` | Python utilities for direct file transfers and archive validation. |
+| `tests/` | Automated unit, process and database integration tests. |
+| `docs/` | Installation, API, operator and release documentation. |
+| `public/` | Application artwork and branding. |
+| `.github/` | CI, dependency updates and contribution templates. |
+
+`.local/` contains ignored development state and is not part of the source release. Never add its databases, credentials or downloaded kits to Git.
+
 ## Pull requests and issues
 
 Explain the problem, resulting behavior and verification. Use fictional data in screenshots. Do not include passwords, enrollment codes, keys, downloaded agent kits, database dumps or private conversations. Report vulnerabilities through [SECURITY.md](SECURITY.md), not a public issue.

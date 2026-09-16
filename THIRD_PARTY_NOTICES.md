@@ -4,7 +4,7 @@ Open Agent Bridge's original code is copyright © 2026 Mun Boon and licensed und
 
 ## Manrope font
 
-`src/components/fonts/Manrope.ttf` is copyright 2018 The Manrope Project Authors, licensed under SIL Open Font License 1.1. The full notice is retained in [OFL.txt](src/components/fonts/OFL.txt). Upstream: https://github.com/sharanda/manrope.
+`src/components/fonts/Manrope.ttf` is copyright 2018 The Manrope Project Authors, licensed under SIL Open Font License 1.1. The full notice is retained in [OFL.txt](src/components/fonts/OFL.txt). The bundled font matches the [Manrope distribution in Google Fonts](https://github.com/google/fonts/tree/main/ofl/manrope). The original upstream URL in the retained copyright notice is no longer available.
 
 ## Dependencies
 

@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
@@ -11,6 +11,7 @@ const keygen=process.env.AGE_KEYGEN_BINARY??path.join(root,'tools/age-1.3.2/age/
 let present=true;try{await access(binary);await access(keygen);}catch{present=false;}
 describe.skipIf(!present)('vetted age recipient encryption',()=> {
   it('F08 only the intended recipient decrypts exact synthetic bytes',async()=> {
+    await mkdir(root,{recursive:true,mode:0o700});
     const stage=await mkdtemp(path.join(root,'age-test-'));
     try {
       const intended=path.join(stage,'intended.key');const unrelated=path.join(stage,'unrelated.key');

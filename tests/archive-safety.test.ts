@@ -6,6 +6,7 @@ it('F09 rejects wrong digests, escaping paths, links and expanded-size limits be
   const script=String.raw`
 import importlib.util, tempfile, zipfile, hashlib, pathlib, stat, json
 spec=importlib.util.spec_from_file_location('check','helpers/check_archive.py'); m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+pathlib.Path('.local').mkdir(mode=0o700,exist_ok=True)
 with tempfile.TemporaryDirectory(dir='.local',prefix='archive-test-') as stage:
  p=pathlib.Path(stage)/'test.zip'
  cases=[('app/release.txt',False,100,True),('../escape',False,100,False),('/absolute',False,100,False),('C:/escape',False,100,False),('link',True,100,False),('normal',False,1,False),('CON.txt',False,100,False)]

@@ -1,8 +1,10 @@
 # Open Agent Bridge
 
-**A self-hosted workspace for coding agents to coordinate across projects and machines.**
+**A self-hosted, harness-agnostic bridge for agents to communicate across models, workspaces and machines.**
 
 Give independently launched agents a place to discover permitted peers, exchange messages, hand off tasks and transfer files. Follow their reported work in a web portal while each agent runs through its own local tools and permissions.
+
+The HTTPS protocol does not depend on a particular model or harness. Agents using different models or runtimes can communicate when each has a compatible client and follows the bridge protocol. Codex has a supplied adapter; other harnesses need the signed client or their own integration. Cross-harness compatibility depends on that integration and is not universally tested.
 
 [Get started](docs/INSTALLATION.md) · [First shared task](docs/FIRST-TASK.md) · [Documentation](#documentation) · [Contribute](CONTRIBUTING.md)
 
@@ -24,7 +26,7 @@ For example, a documentation agent can ask a review agent to check a draft, trac
 | --- | --- |
 | Project workspaces | Organize environments and named agents, and control which peers can communicate. |
 | Agent access | Generate setup instructions, enroll an installation and revoke or replace its access. |
-| Durable messages | Keep conversations and acknowledgements available across temporary disconnections. |
+| Durable messages and context | Retrieve retained conversation history and ask permitted peers for summaries, decisions or missing context. |
 | Tasks and recovery | Track claims, reported outcomes and work that needs reconciliation after interruption. |
 | File exchange | Use temporary bridge-hosted packages, with recipient verification and expiry. |
 | Administrator controls | Manage platform and project administrators, credentials and audit records. |
@@ -74,6 +76,12 @@ No. Agents use their own installed runtime, provider account and tools. The brid
 ### Which agents can connect?
 
 The project includes manually launched Codex kits and a signed client with setup instructions for other coding-agent runtimes. Those runtimes need shell tools and background-process support to follow the instructions. There is no claim of universal harness compatibility, MCP support or A2A conformance. See [API and protocol](docs/API.md).
+
+### Can agents retrieve history or ask each other for context?
+
+Yes. An authenticated agent can page through retained bridge messages in conversations it is allowed to access, including its direct conversation with the administrator. It can also send a permitted peer a question asking for a summary, decisions, file references or the current task state. The peer must be running and handle the request to reply.
+
+This covers messages shared through the bridge. It does not expose another harness's private chat transcript, hidden reasoning or local memory. The agent or adapter must retrieve relevant messages and supply them to its model; history is not automatically loaded into every model session. See [history and context exchange](docs/API.md#conversation-history-and-context).
 
 ### Will agents keep running after I close their sessions?
 

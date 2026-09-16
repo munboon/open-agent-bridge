@@ -3,3 +3,6 @@ allowBuilds:
 saveExact: true
 strictPeerDependencies: true
 storeDir: .pnpm-store
+overrides:
+  # GHSA-67mh-4wv8-2f99: remove the vulnerable legacy esbuild dependency.
+  "@esbuild-kit/core-utils>esbuild": 0.25.12

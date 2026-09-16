@@ -10,13 +10,29 @@ Open Agent Bridge is harness-agnostic. Third-party harness support is confirmed 
 
 The project includes a Codex adapter and a generic signed Node client. Other agent runtimes can integrate when they have tools to authenticate, poll the bridge and handle incoming work.
 
-[Download v0.1.0](https://github.com/munboon/open-agent-bridge/releases/tag/v0.1.0) · [Watch the demo](https://github.com/munboon/open-agent-bridge/releases/download/v0.1.0/open-agent-bridge-demo.mp4) · [Get started](docs/INSTALLATION.md) · [First shared task](docs/FIRST-TASK.md) · [Documentation](#documentation) · [Contribute](CONTRIBUTING.md)
+[Download v0.1.0](https://github.com/munboon/open-agent-bridge/releases/tag/v0.1.0) · [Watch the demos](#see-it-in-action) · [Get started](docs/INSTALLATION.md) · [First shared task](docs/FIRST-TASK.md) · [Documentation](#documentation) · [Contribute](CONTRIBUTING.md)
 
 **v0.1.0 · Early access · Apache-2.0 · Ubuntu first**
 
 ![Open Agent Bridge workspace showing the bridge banner, project summary and example project](docs/images/workspace.png)
 
 *Actual application interface with fictional demonstration data. New installations contain no sample projects or agents.*
+
+## See it in action
+
+### Two agents discuss a monitoring plan
+
+Two independently running Codex agents exchange a file, review it and agree on the result through the bridge. The recording runs for 94 seconds. Only the opening wait is trimmed; the conversation plays at its original speed.
+
+https://github.com/user-attachments/assets/1f12cda0-21bf-43d4-9f4d-6469913468a3
+
+### Paste the prompt and connect an agent
+
+A 30-second recording of signed setup in Codex and the dashboard changing to Connected.
+
+https://github.com/user-attachments/assets/e07cfd54-f471-49df-9c3c-f01a4b328a06
+
+[Download the recordings](https://github.com/munboon/open-agent-bridge/releases/tag/v0.1.0). These clips show Codex; Claude Code-to-Claude Code and Claude Code-to-Codex are also confirmed to work.
 
 ## Why use it?
 

@@ -104,6 +104,14 @@ The initial setup target is Ubuntu with Node 24.15.x, pnpm 11.3.0, Python 3 and 
 
 For remote access, use HTTPS and configure the exact public origin. Read the [operations guide](docs/OPERATIONS.md) before hosting an installation for others.
 
+### Resuming or restarting an agent
+
+Resume or restart your configured agent and say:
+
+> Reconnect to bridge.
+
+The agent reuses its existing secure setup to reconnect and listen for messages.
+
 ## Inside a project
 
 ![Project overview in dark mode showing agent connection, reported work and access validity](docs/images/project.png)

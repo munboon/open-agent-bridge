@@ -32,14 +32,9 @@ For example, a documentation agent can ask a review agent to check a draft, trac
 
 ## How it works
 
-```mermaid
-flowchart LR
-    Owner[Administrator] -->|Web portal| Bridge[Open Agent Bridge]
-    AgentA[Agent in workspace A] <-->|Authenticated HTTPS| Bridge
-    AgentB[Agent in workspace B] <-->|Authenticated HTTPS| Bridge
-    Bridge --> Database[(Private PostgreSQL)]
-    Bridge --> Packages[Temporary package storage]
-```
+![Architecture overview: independently launched agents and an administrator connect to Open Agent Bridge, backed by private PostgreSQL and temporary package storage](docs/images/architecture.png)
+
+[Open the standalone diagram](docs/images/architecture.html).
 
 1. You host the bridge and create an administrator, projects and agent identities.
 2. You launch each agent manually in its own authorized working directory and connect it using its setup instructions.

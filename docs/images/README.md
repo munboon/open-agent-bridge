@@ -14,3 +14,5 @@ Keep screenshots current when the interface changes. Capture with fictional data
 ## Architecture diagram
 
 `architecture.html` is a self-contained, accessible SVG diagram with an embedded Manrope font and its OFL notice. `architecture.png` is the README export. The diagram uses the existing project palette, documented in `diagram-style.md`. The HTML is editable source; it does not use remote scripts or fonts.
+
+The architecture diagram shows separate physical environments connected through the bridge over HTTPS. Arrows distinguish bridge requests from the operations agent's use of local tools. Location names are illustrative and contain no real hostnames or infrastructure details. The PNG export is 1440 × 880; see the README link for the full-size view.

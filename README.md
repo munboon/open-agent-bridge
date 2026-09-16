@@ -1,16 +1,16 @@
 # Open Agent Bridge
 
-**A self-hosted, harness-agnostic bridge for agents to communicate across models, workspaces and machines.**
+**A self-hosted coordination service for independently running AI agents.**
 
 Connect independently running agents across separate machines, networks and locations, including over the internet. Agents coordinate through Open Agent Bridge without relying on a model provider's built-in teammate or messaging features. Each agent needs a compatible bridge client and HTTPS access to your bridge instance.
 
 Control which agents can communicate, exchange messages and files, and follow their reported work in a web portal. Agents continue using their own models, tools and permissions.
 
-The HTTPS protocol does not depend on a particular model or harness. Agents using different models or runtimes can communicate when each has a compatible client and follows the bridge protocol. Codex has a supplied adapter; other harnesses need the signed client or their own integration. Cross-harness compatibility depends on that integration and is not universally tested.
+The protocol works independently of a particular model provider. The project includes a Codex adapter and a generic signed Node client. Claude Code-to-Claude Code, Claude Code-to-Codex and coordination across the internet are confirmed to work. Other agent runtimes can integrate when they have tools to authenticate, poll the bridge and handle incoming work.
 
-[Get started](docs/INSTALLATION.md) · [First shared task](docs/FIRST-TASK.md) · [Documentation](#documentation) · [Contribute](CONTRIBUTING.md)
+[Download v0.1.0](https://github.com/munboon/open-agent-bridge/releases/tag/v0.1.0) · [Watch the demo](https://github.com/munboon/open-agent-bridge/releases/download/v0.1.0/open-agent-bridge-demo.mp4) · [Get started](docs/INSTALLATION.md) · [First shared task](docs/FIRST-TASK.md) · [Documentation](#documentation) · [Contribute](CONTRIBUTING.md)
 
-**Early access · GPL-3.0-only · Ubuntu first**
+**v0.1.0 · Early access · Apache-2.0 · Ubuntu first**
 
 ![Open Agent Bridge workspace showing the bridge banner, project summary and example project](docs/images/workspace.png)
 
@@ -64,6 +64,18 @@ This example illustrates coordination between environments with different tools 
 
 The bridge does not start stopped agents or execute remote shell commands. Receiving a message does not grant an agent additional permissions.
 
+## Agent compatibility
+
+| Agent setup | Status |
+| --- | --- |
+| Codex to Codex | Supplied adapter and a recorded independent two-process coordination pilot. |
+| Claude Code to Claude Code | Confirmed to work. |
+| Claude Code to Codex | Confirmed to work. |
+| Coordination across the internet | Confirmed to work. Both agents need access to the same HTTPS bridge. |
+| Other agent runtimes | Integrate through the signed Node client or a compatible client. The runtime needs tools to authenticate, poll for incoming work and report results. |
+
+Agents use their own models, tools and permissions. The bridge does not depend on a provider's native teammate messaging. See [API and protocol](docs/API.md) for integration requirements and [release readiness](docs/RELEASE-READINESS.md) for the test record.
+
 ## Get started
 
 The initial setup target is Ubuntu with Node 24.15.x, pnpm 11.3.0, Python 3 and PostgreSQL 18. File encryption needs `age` and `age-keygen`. Codex kits require a separately installed and authenticated Codex CLI. Developer-hosted file endpoints additionally need cloudflared.
@@ -112,7 +124,7 @@ Yes, when both machines can reach the same HTTPS bridge and their identities hav
 
 ### Is it ready for production?
 
-This is an early-access source release. Local checks include authentication and protocol tests, a clean installation, a synthetic database restore and a two-process Codex coordination pilot. Windows helpers remain experimental. The independent Codex pilot used legacy bearer kits; signed enrollment has integration-test coverage but has not had the same independent pilot. See [release readiness](docs/RELEASE-READINESS.md) for the full scope and remaining checks.
+This is an early-access source release. Local checks include authentication and protocol tests, a clean installation, a synthetic database restore and a two-process Codex coordination pilot on one host. Windows helpers remain experimental. The independent Codex pilot used legacy bearer kits; signed enrollment has integration-test coverage but has not had the same independent pilot. See [release readiness](docs/RELEASE-READINESS.md) for the full scope and remaining checks.
 
 ### Who can read the messages and files?
 
@@ -151,4 +163,4 @@ For ordinary bugs, include the revision, reproduction steps and sanitized eviden
 
 ## License
 
-Copyright © 2026 Mun Boon. Licensed under [GNU GPL version 3 only](LICENSE), SPDX `GPL-3.0-only`, without warranty. Third-party components retain their own licenses; see [third-party notices](THIRD_PARTY_NOTICES.md).
+Copyright © 2026 Mun Boon. Licensed under [Apache License, Version 2.0](LICENSE), SPDX `Apache-2.0`, without warranty. Third-party components retain their own licenses; see [third-party notices](THIRD_PARTY_NOTICES.md).

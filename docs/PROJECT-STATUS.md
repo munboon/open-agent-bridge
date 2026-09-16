@@ -6,7 +6,7 @@
 - `openagentbridge.org` is the preferred domain. No purchase is authorized or planned yet. It is not a configured service address.
 - On 16 September 2026, Mun Boon authorized publishing this source as `munboon/open-agent-bridge` under his GitHub profile. The repository is public after a successful private GitHub Actions run.
 - The owner authorized a temporary TryCloudflare preview after cleanup. Domain purchase and permanent production deployment remain outside the approved scope.
-- Mun Boon confirmed personal ownership of the original and rebranded code. Copyright holder: Mun Boon. The project uses GPL-3.0-only; the full license is in `LICENSE`. Third-party licenses remain in force.
+- Mun Boon confirmed personal ownership of the original and rebranded code. Copyright holder: Mun Boon. The owner changed the current source license from GPL-3.0-only to Apache-2.0 on 16 September 2026; the full license is in `LICENSE`. Third-party licenses remain in force.
 
 ## Proposed release approach
 

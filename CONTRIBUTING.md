@@ -39,6 +39,6 @@ Preserve authentication, project isolation, signed requests, session fencing and
 
 Explain the problem, resulting behavior and verification. Use fictional data in screenshots. Do not include passwords, enrollment codes, keys, downloaded agent kits, database dumps or private conversations. Report vulnerabilities through [SECURITY.md](SECURITY.md), not a public issue.
 
-By submitting a contribution, you agree to license your contribution under GPL-3.0-only. You retain your copyright. Submit only work you are entitled to contribute, identify third-party material and preserve its notices. AI-assisted contributions receive the same review and testing as other contributions; check generated code and dependencies before submitting.
+By submitting a contribution, you agree to license your contribution under Apache-2.0. You retain your copyright. Submit only work you are entitled to contribute, identify third-party material and preserve its notices. AI-assisted contributions receive the same review and testing as other contributions; check generated code and dependencies before submitting.
 
 There is no response-time or acceptance guarantee. Mun Boon reviews changes and decides release scope.

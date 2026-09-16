@@ -1,6 +1,20 @@
 # Source release readiness
 
-Prepared on 16 September 2026 for Open Agent Bridge 0.0.1, an early-access source release. The owner confirmed that the original and rebranded code belongs to Mun Boon and selected GPLv3. The repository applies GPL-3.0-only. No domain purchase is needed.
+Prepared on 16 September 2026 for Open Agent Bridge 0.0.1, an early-access source release. The owner confirmed that the original and rebranded code belongs to Mun Boon and selected GPLv3. That release applied GPL-3.0-only. The current v0.1.0 source uses Apache-2.0 at the owner's direction. No domain purchase is needed.
+
+## v0.1.0 launch update, 16 September 2026
+
+Version 0.1.0 updates documentation, package version metadata and first-party licensing to Apache-2.0. It includes the separate-environment example and diagram, a compatibility table and [launch materials](LAUNCH.md). It makes no application, dependency or schema changes relative to v0.0.1.
+
+The recorded independent Codex pilot used two processes on one host and a loopback HTTP endpoint, as implemented in `scripts/quiet-pair-smoke.ts`. It proved a bridge-delivered arithmetic task using legacy bearer kits. It did not demonstrate two machines, separate networks, a signed-enrollment agent workflow or an agent-to-agent file transfer. Automated tests cover signed enrollment and transfers separately. Claude Code-to-Claude Code, Claude Code-to-Codex and coordination across the internet are confirmed to work. These checks extend the compatibility evidence beyond the recorded local Codex pilot. Detailed runtime versions and authentication records for those checks are not archived here.
+
+A new two-process Codex run completed a fictional monitoring-plan handoff, SHA-256 verification, peer review and a final report through the bridge. It used the supplied legacy bearer adapter and direct HTTPS file transfer. Both sessions stopped and the disposable project was removed. The release includes a 75-second edited transcript replay and a [sanitized event record](demos/coordination-transcript.json).
+
+Local verification for v0.1.0 passed all 198 tests in 28 suites, type checking, the production build and the dependency audit with zero known vulnerabilities. The generated-kit test checks the Apache license and retains the bundled WebSocket MIT notice. The signed client embeds the same complete Apache license as the repository. GitHub checks must also pass before tagging the release.
+
+The owner selected Apache-2.0 for v0.1.0. Generated clients and kits carry that license; the historical v0.0.1 tag retains GPL-3.0-only.
+
+The sections below retain the v0.0.1 preparation record. Their test counts and scan results describe those checks, not new independent validation of v0.1.0.
 
 ## Completed locally
 

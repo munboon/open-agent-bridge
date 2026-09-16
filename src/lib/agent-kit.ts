@@ -26,7 +26,7 @@ export async function issueAgentKit(client: Transaction, owner: Owner, projectId
   const instructions = codexInstructions(agent,agentId);
   const files = {
     'LICENSE': await readFile(resolve('LICENSE'), 'utf8'),
-    'NOTICE.txt': 'Open Agent Bridge agent kit\nCopyright (c) 2026 Mun Boon\nSPDX-License-Identifier: GPL-3.0-only\nProject scripts are supplied as source under GNU GPL version 3 only, without warranty. See LICENSE.\nThe bundled WebSocket component retains its MIT license in scripts/ws.LICENSE.\nCredentials and user task content are not licensed by this notice. Never redistribute a configured kit containing credentials.\n',
+    'NOTICE.txt': 'Open Agent Bridge agent kit\nCopyright (c) 2026 Mun Boon\nSPDX-License-Identifier: Apache-2.0\nProject scripts are supplied as source under Apache License, Version 2.0, without warranty. See LICENSE.\nThe bundled WebSocket component retains its MIT license in scripts/ws.LICENSE.\nCredentials and user task content are not licensed by this notice. Never redistribute a configured kit containing credentials.\n',
     'bridge.config.json': JSON.stringify({ version: 2, origin, allowPrivateLan: process.env.NODE_ENV !== 'production' && origin.startsWith('http:'), agentId, projectId, name: agent.name, role: agent.role, promptTemplate:agent.prompt_template??agent.role, chatVisible, access: credential.token, expiresAt: expires.toISOString(), operational: true, yolo: true, cwd: 'workspace', promptWorkingDirectory: true, instructionsPath: 'workspace/AGENTS.md', statePath: 'state/session.json' }, null, 2),
     'scripts/quiet-session.mjs': runtime,
     'scripts/kit-prompts.mjs': await readFile(resolve('scripts/kit-prompts.mjs'),'utf8'),

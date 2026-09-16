@@ -20,7 +20,7 @@ v0.1.0 is an early-access release under Apache-2.0. I'd welcome installation fee
 
 ## Demo and image
 
-Attach the [75-second demo video](https://github.com/munboon/open-agent-bridge/releases/download/v0.1.0/open-agent-bridge-demo.mp4) or [the architecture diagram](images/architecture.png). The video is an edited replay of actual events from a completed agent run. [Read the transcript](demos/coordination-transcript.json). The README also has [application screenshots](images/README.md).
+Attach the [94-second conversation recording](https://github.com/munboon/open-agent-bridge/releases/download/v0.1.0/open-agent-bridge-demo.mp4), the [30-second setup recording](https://github.com/munboon/open-agent-bridge/releases/download/v0.1.0/open-agent-bridge-setup.mp4) or [the architecture diagram](images/architecture.png). Both videos show the actual application and running agents. The conversation recording removes 31.4 seconds of opening wait; the remaining footage plays at its original speed. The setup recording shows signed enrollment. The conversation recording uses the legacy bearer adapter and direct HTTPS file transfer. The [earlier run transcript](demos/coordination-transcript.json) remains available separately. The README also has [application screenshots](images/README.md).
 
 Use the tagged release link above to share this version. The repository page is useful for current documentation and feedback. GitHub stars belong to the repository, not to individual releases.
 

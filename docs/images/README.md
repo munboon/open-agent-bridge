@@ -10,3 +10,7 @@ All API responses used for these captures were intercepted with fictional docume
 The bridge illustration visible in the workspace is the existing generated project artwork. Its provenance is recorded under `public/art/titanium`. These are browser screenshots, not generated UI mockups.
 
 Keep screenshots current when the interface changes. Capture with fictional data, wait for fonts and disable animations. Review the images for readable layout and accidental private information before committing.
+
+## Architecture diagram
+
+`architecture.html` is a self-contained, accessible SVG diagram with an embedded Manrope font and its OFL notice. `architecture.png` is the README export. The diagram uses the existing project palette, documented in `diagram-style.md`. The HTML is editable source; it does not use remote scripts or fonts.

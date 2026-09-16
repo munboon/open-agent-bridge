@@ -1,6 +1,5 @@
 'use client';
 
-import { TitaniumWorkspace } from './TitaniumWorkspace';
 import { AgentControlCenter } from './AgentControlCenter';
 import type { Snapshot } from './OwnerPortal';
 import { Icon } from './ui';
@@ -26,10 +25,11 @@ function eventLabel(value: string) {
   return value.replace(/[_.]/g, ' ').replace(/^./, letter => letter.toUpperCase());
 }
 
-export function ProjectOverview({ snapshot, stale, onMessage, onAgents, onAudit, onEnvironment, onExtend, onRefresh, onConfig, onManage }: Props) {
+export function ProjectOverview({ snapshot, stale, onMessage, onAgents, onTasks, onAudit, onEnvironment, onExtend, onRefresh, onConfig, onManage }: Props) {
   return <div className="project-overview">
-    <TitaniumWorkspace snapshot={snapshot} stale={stale} onMessage={onMessage} onAgents={onAgents} onRefresh={onRefresh}/>
-    <details className="titanium-status"><summary>Detailed status and access</summary><AgentControlCenter snapshot={snapshot} stale={stale} onAgents={onAgents} onMessage={onMessage} onExtend={onExtend} onRefresh={onRefresh} onConfig={onConfig} onManage={onManage}/></details>
+    <section className="overview-panel project-work-summary" aria-label="Reported project work"><div><h2>Project work</h2><p>Tasks reported to the bridge. Local work may not be reported.</p></div><strong>{snapshot.tasks.length} recent tasks</strong><span>{snapshot.tasks.filter(task=>task.state==='completed').length} completed</span><button className="button button-outline" onClick={onTasks}>View tasks<Icon name="arrow"/></button></section>
+    <AgentControlCenter snapshot={snapshot} stale={stale} onAgents={onAgents} onMessage={onMessage} onExtend={onExtend} onRefresh={onRefresh} onConfig={onConfig} onManage={onManage}/>
+
 
     <div className="overview-panels">
       <section className="overview-panel environment-panel" aria-labelledby="environments-title">

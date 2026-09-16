@@ -5,6 +5,13 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    ignore:
+      # Match the supported Node 24 runtime until a runtime upgrade is reviewed.
+      - dependency-name: "@types/node"
+        versions: [">=25"]
+    groups:
+      react:
+        patterns: ["react", "react-dom", "@types/react", "@types/react-dom"]
   - package-ecosystem: github-actions
     directory: /
     schedule:

@@ -28,8 +28,15 @@ async function privateDirectory(path){
  }else if(stat.uid!==process.getuid()||(stat.mode&0o077)!==0)throw Error('Private storage must be owned by this user with mode 0700.');
 }
 export async function storage(config){
- validate(config);const base=process.platform==='win32'?join(process.env.LOCALAPPDATA??join(homedir(),'AppData','Local'),'OpenAgentBridge'):join(homedir(),'.config','open-agent-bridge-bridge');
- const root=join(base,sha(config.origin+'\n'+config.agentId));await privateDirectory(root);return root;
+ validate(config);const base=process.platform==='win32'?join(process.env.LOCALAPPDATA??join(homedir(),'AppData','Local'),'OpenAgentBridge'):join(homedir(),'.config','open-agent-bridge');
+ const identity=sha(config.origin+'\n'+config.agentId);
+ let root=join(base,identity);
+ // Preserve keys created by the initial standalone preview. Never re-enroll silently.
+ if(process.platform!=='win32'){
+  const previous=join(homedir(),'.config','open-agent-bridge-bridge',identity);
+  try {await lstat(previous);root=previous;} catch(error){if(error.code!=='ENOENT')throw error;}
+ }
+ await privateDirectory(root);return root;
 }
 async function atomic(path,value){const temp=path+'.'+randomUUID()+'.tmp';const file=await open(temp,'wx',0o600);try{await file.writeFile(JSON.stringify(value));await file.sync();}finally{await file.close();}await rename(temp,path);}
 async function readPrivate(path){const file=await open(path,'r');try{const stat=await lstat(path);if(stat.isSymbolicLink()||!stat.isFile()||(process.platform!=='win32'&&(stat.uid!==process.getuid()||(stat.mode&0o077)!==0)))throw Error('Private file permissions are unsafe.');return JSON.parse(await file.readFile('utf8'));}finally{await file.close();}}

@@ -10,6 +10,8 @@ This is an early standalone development version. It includes an owner portal, ma
 
 A project license has not yet been selected. Public availability alone does not grant an open-source license. The bundled Manrope font retains its SIL Open Font License in `src/components/fonts/OFL.txt`.
 
+See [project status and release decisions](docs/PROJECT-STATUS.md) for the current scope, domain preference and remaining release work. No permanent public service domain is configured.
+
 ## Local setup on Ubuntu
 
 Install Node 24.15.x, pnpm 11.3.0, Python 3 and PostgreSQL 18. File encryption requires `age` and `age-keygen`. Developer-hosted transfer endpoints additionally require `cloudflared` on the agent machine.

@@ -21,13 +21,13 @@ Prepared on 16 September 2026 for Open Agent Bridge 0.0.1, an early-access sourc
 
 - The independent Codex pilot used legacy bearer kits. Signed enrollment has integration coverage, but no equivalent independent end-to-end Codex pilot in this release.
 - Windows helpers remain experimental. They have not been executed on Windows for this standalone release. The Windows restore-drill script is not a Linux operations command.
-- GitHub Actions have not run remotely because source has not been pushed. Local checks passed; remote CI is a publication-stage gate.
+- GitHub Actions passed on the release source, including database tests, type checking, production build, dependency audit and full-history secret scanning.
 - No independent security audit, production-scale load test, managed hosting service, public signup or uptime commitment is claimed.
 - A source release is prepared. Binary/container redistribution requires a separate review of the actual bundled dependency licenses and corresponding-source obligations.
 
 ## Publication sequence
 
-Destination: `munboon/open-agent-bridge` on GitHub. Verified private and empty during preparation. No source was pushed and no visibility was changed.
+Destination: `munboon/open-agent-bridge` on GitHub. Source was pushed privately, checked by GitHub Actions, then made public on 16 September 2026 with owner authorization.
 
 1. Owner approval received on 16 September 2026 for this destination and public source release.
 2. Push the reviewed branch as the initial default branch while the repository is still private. Run GitHub Actions and resolve any failures before public release.
@@ -47,10 +47,14 @@ The release is source-only. Installers supply their own administrator password d
 
 A renewed scan of all Git refs found no secrets. An exact check across 221 historical blobs found neither the preview administrator password nor `project.nexlinksys.com`. No tracked runtime database, dump or credential archive was found. The dependency audit still reports zero known vulnerabilities, and workflow validation passes.
 
-Remote CI and private vulnerability reporting remain publication-stage checks. Windows and the independent signed-enrollment pilot retain the limitations listed above. Existing local preview projects are not release contents and were preserved.
+Remote CI passed and private vulnerability reporting is enabled. Windows and the independent signed-enrollment pilot retain the limitations listed above. Existing local preview projects are not release contents and were preserved.
 
 ## Publication authorization and final scan
 
 Mun Boon authorized public publication on 16 September 2026. The final pre-push review started at `1eaa1cd9e6c606838801e49883022e55eb982764`. Gitleaks scanned all Git refs with zero findings; the dependency audit reported zero known vulnerabilities. The tree contained 192 tracked files and no local runtime files.
 
-The first push was rejected because the GitHub CLI login lacked the `workflow` scope required to upload the CI workflow. No refs were published; the destination remains private and empty while authorization is pending. Remote CI, public visibility, private vulnerability reporting and the prerelease remain incomplete.
+The initial GitHub authorization issue was resolved. The first remote test run exposed two tests that assumed `.local` existed. Each test now creates its scratch parent on a fresh checkout. All 198 tests, type checking, the production build, dependency audit and secret scan then passed in [GitHub Actions](https://github.com/munboon/open-agent-bridge/actions/runs/35080182569).
+
+Public visibility and private vulnerability reporting were verified through GitHub. Dependabot security updates, secret scanning and secret-scanning push protection are enabled. No open Dependabot security alerts were reported at publication. GitHub recognizes the GPLv3 license. The downloaded source archive contains 192 files and excludes local runtime data and credential files.
+
+The release documentation includes the lab deployment feedback loop and a contributor directory map. The Manrope font and license match Google Fonts byte for byte; the broken attribution link now points to that maintained distribution. Local Markdown file links resolve, and all six external Markdown link destinations returned HTTP 200 before this publication-status update. Push checks target `main`; pull requests retain checks without a duplicate branch-push run. The final documentation revision must pass CI before tag `v0.0.1` is published as a prerelease.

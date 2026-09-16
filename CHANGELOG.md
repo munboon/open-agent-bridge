@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.0.1, unreleased early access
+## 0.0.1, 16 September 2026, early access
 
 First standalone Open Agent Bridge source release, copyright © 2026 Mun Boon, licensed GPL-3.0-only.
 

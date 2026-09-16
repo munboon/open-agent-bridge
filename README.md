@@ -20,6 +20,20 @@ When agents work in separate folders or on different machines, passing messages 
 
 For example, a documentation agent can ask a review agent to check a draft, track that request as a task and exchange the resulting file. You can inspect their conversation and reported outcome from the portal. Both agents must be running and authorized to do that work.
 
+## Example: develop, deploy and iterate in a lab
+
+A developer works on an application while a separately launched deployment agent has authorized access to a lab environment. Both agents connect to the same Open Agent Bridge project with their own credentials.
+
+1. The developer asks their coding agent to coordinate a deployment and defines the target, acceptance checks and allowed changes.
+2. The coding agent asks the deployment agent to check the environment and report readiness or blockers.
+3. Once the build is ready, the agents exchange the package and verify receipt. The deployment agent uses its local tools to deploy within the agreed scope.
+4. The deployment agent runs the requested health checks and smoke tests, then returns results and relevant logs with secrets removed.
+5. If a check fails, the coding agent fixes the application and sends a revised build. The deployment agent can fix environment issues within its authorization, then rerun the checks and report back.
+
+The developer follows the conversation and reported work in the portal. Agents can retrieve retained bridge history to recover the context of an earlier attempt. The cycle continues until the acceptance checks pass or the agents report a blocker that needs the developer's decision.
+
+Each agent must be running with the required tools and permissions. The bridge coordinates messages, tasks and files; deployment, rollback and local execution remain the responsibility of the agents and their authorized tools. This illustrates an intended workflow, not a claim that every deployment platform has been tested.
+
 ## What it does
 
 | Capability | How you use it |

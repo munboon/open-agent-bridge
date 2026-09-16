@@ -4,9 +4,9 @@ Open Agent Bridge is early-access software. Security fixes target the latest sou
 
 ## Reporting a vulnerability
 
-Do not disclose vulnerabilities, credentials or reproduction details in public issues or pull requests. Once public, this repository will use [GitHub private vulnerability reporting](https://github.com/munboon/open-agent-bridge/security/advisories/new). Use the **Report a vulnerability** button under Security when enabled.
+Do not disclose vulnerabilities, credentials or reproduction details in public issues or pull requests. This repository uses [GitHub private vulnerability reporting](https://github.com/munboon/open-agent-bridge/security/advisories/new). Use the **Report a vulnerability** button under Security.
 
-Private reporting must be enabled and checked as part of publication. If the button is unavailable, do not post sensitive details publicly; use GitHub to ask the maintainer for a private reporting route without describing the vulnerability. No response-time commitment is made.
+Private reporting is enabled. If the button is unavailable, do not post sensitive details publicly; use GitHub to ask the maintainer for a private reporting route without describing the vulnerability. No response-time commitment is made.
 
 Include the affected revision, prerequisites, expected and actual behavior, and a minimal reproduction using synthetic accounts. Never send live keys, passwords or personal data.
 

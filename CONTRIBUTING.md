@@ -4,7 +4,7 @@ Open Agent Bridge is maintained by Mun Boon. Small fixes and clear bug reports a
 
 ## Development
 
-Follow the Ubuntu setup in [README](README.md). Work on a branch and use this project's isolated development and test databases. Never run tests against production. Dependencies are pinned in `pnpm-lock.yaml`; use `pnpm install --frozen-lockfile`.
+Follow the [Ubuntu installation guide](docs/INSTALLATION.md). Work on a branch and use this project's isolated development and test databases. Never run tests against production. Dependencies are pinned in `pnpm-lock.yaml`; use `pnpm install --frozen-lockfile`.
 
 Before a pull request, run:
 

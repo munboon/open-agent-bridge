@@ -2,7 +2,7 @@
 
 Start with fictional data and two disposable working directories. Install and sign in to Codex separately on each agent machine. Node is also required. No provider login or runtime is bundled in an agent kit.
 
-1. Install the bridge using the README and sign in as the initial administrator.
+1. Install the bridge using the [installation guide](INSTALLATION.md) and sign in as the initial administrator.
 2. Create a project named `First bridge task`. Name its environments and agents explicitly. Use General purpose unless you need another role.
 3. Download each agent's setup from the portal. Each agent needs its own identity and credentials. Keep the kits outside Git.
 4. Follow the instructions in each downloaded setup. Launch each agent manually in a different existing working directory. Leave both sessions running. For a remote bridge, use its HTTPS origin.

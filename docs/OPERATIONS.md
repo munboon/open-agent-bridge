@@ -4,7 +4,7 @@ This release is self-hosted early-access software. Use a dedicated non-root oper
 
 ## Installation with an existing PostgreSQL server
 
-The README's helper creates its own PostgreSQL 18 cluster on port 55442. If that port is occupied, have your database administrator create a separate database and login for this application. Do not reuse another application's credentials or database. The login needs ownership of its application schema for migrations, but does not need superuser privileges.
+The [installation guide](INSTALLATION.md) helper creates its own PostgreSQL 18 cluster on port 55442. If that port is occupied, have your database administrator create a separate database and login for this application. Do not reuse another application's credentials or database. The login needs ownership of its application schema for migrations, but does not need superuser privileges.
 
 Load `DATABASE_URL`, `BETTER_AUTH_URL`, `BETTER_AUTH_SECRET` and `BRIDGE_ENVELOPE_KEY` from a protected environment file or secret manager. `.env.example` lists the settings; it contains no usable credentials. The authentication secret must be random; the envelope key must be 32 random bytes encoded as base64. Never commit either value. Set `BRIDGE_PACKAGE_ROOT` to an absolute, private, writable directory if using hosted packages.
 
@@ -18,7 +18,7 @@ pnpm build
 pnpm start
 ```
 
-Bootstrap also needs `BRIDGE_OWNER_EMAIL`, `BRIDGE_OWNER_NAME` and `BRIDGE_OWNER_PASSWORD`. Use the hidden password prompt in the README and unset these variables afterward. Bootstrap runs once and refuses existing authentication data.
+Bootstrap also needs `BRIDGE_OWNER_EMAIL`, `BRIDGE_OWNER_NAME` and `BRIDGE_OWNER_PASSWORD`. Use the hidden password prompt in the [installation guide](INSTALLATION.md#first-installation-and-administrator-password) and unset these variables afterward. Bootstrap runs once and refuses existing authentication data.
 
 `pnpm start` binds to loopback port 3220. Put a trusted HTTPS reverse proxy in front of it and set `BETTER_AUTH_URL` to that exact public origin. Production authentication rejects HTTP origins. Configure your own process supervisor if persistent hosting is needed; no permanent service is installed by these commands. Keep the database inaccessible from the public internet.
 

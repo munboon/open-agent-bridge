@@ -549,7 +549,7 @@ pre { font-family: ui-monospace, 'Cascadia Code', Consolas, monospace; backgroun
 .overview-environment summary::-webkit-details-marker { display: none; }
 .overview-environment summary > .icon { color: var(--color-primary); width: 20px; height: 20px; flex: 0 0 20px; }
 .overview-environment summary strong { font-weight: 500; overflow-wrap: anywhere; }
-.overview-environment summary > span { margin-left: auto; color: var(--color-on-surface-variant); white-space: nowrap; font-size:.8125rem; }
+.overview-environment summary > span:not(.icon) { margin-left: auto; color: var(--color-on-surface-variant); white-space: nowrap; font-size:.8125rem; }
 .overview-environment summary > .icon:last-child { width: 14px; height: 14px; flex-basis: 14px; }
 .overview-environment[open] summary > .icon:last-child { transform: rotate(90deg); }
 .environment-members { padding: 4px 0 14px 30px; font-size:.8125rem; }

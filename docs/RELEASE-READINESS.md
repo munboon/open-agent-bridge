@@ -29,10 +29,10 @@ Prepared on 16 September 2026 for Open Agent Bridge 0.0.1, an early-access sourc
 
 Destination: `munboon/open-agent-bridge` on GitHub. Verified private and empty during preparation. No source was pushed and no visibility was changed.
 
-1. Obtain the owner's final approval for this destination, source revision and public visibility.
+1. Owner approval received on 16 September 2026 for this destination and public source release.
 2. Push the reviewed branch as the initial default branch while the repository is still private. Run GitHub Actions and resolve any failures before public release.
 3. Configure repository description and topics, then change visibility to public only within the approved scope.
-4. Enable and verify GitHub private vulnerability reporting immediately. Confirm the Security policy's report link is usable. Subscribe the maintainer to security notifications.
+4. Enable and verify GitHub private vulnerability reporting immediately. Confirm the Security policy's report link is usable. The maintainer should check personal security notification preferences.
 5. Publish tag `v0.0.1` as a prerelease with the notes in `CHANGELOG.md`. Verify the public license, README, documentation links and source archive.
 
 Do not include `.local`, downloaded agent kits, database backups, provider credentials, runtime binaries or package storage in the repository or release assets. Do not treat a source commit as a backup of those items.
@@ -48,3 +48,9 @@ The release is source-only. Installers supply their own administrator password d
 A renewed scan of all Git refs found no secrets. An exact check across 221 historical blobs found neither the preview administrator password nor `project.nexlinksys.com`. No tracked runtime database, dump or credential archive was found. The dependency audit still reports zero known vulnerabilities, and workflow validation passes.
 
 Remote CI and private vulnerability reporting remain publication-stage checks. Windows and the independent signed-enrollment pilot retain the limitations listed above. Existing local preview projects are not release contents and were preserved.
+
+## Publication authorization and final scan
+
+Mun Boon authorized public publication on 16 September 2026. The final pre-push review started at `1eaa1cd9e6c606838801e49883022e55eb982764`. Gitleaks scanned all Git refs with zero findings; the dependency audit reported zero known vulnerabilities. The tree contained 192 tracked files and no local runtime files.
+
+The first push was rejected because the GitHub CLI login lacked the `workflow` scope required to upload the CI workflow. No refs were published; the destination remains private and empty while authorization is pending. Remote CI, public visibility, private vulnerability reporting and the prerelease remain incomplete.

@@ -288,3 +288,28 @@ input::placeholder,textarea::placeholder { color:var(--color-on-surface-variant)
  .workspace .agent-list .agent-meta { display:grid; gap:6px; }
  .workspace .agent-list .agent-meta .badge { justify-self:start; }
 }
+.project-ticket-list { display:grid; gap:0; border:1px solid var(--color-outline-variant); border-radius:12px; background:var(--color-surface-container-lowest); }
+.project-ticket { display:grid; grid-template-columns:minmax(180px,1fr) minmax(150px,.7fr) minmax(320px,2fr) auto; align-items:start; gap:24px; padding:20px; border-bottom:1px solid var(--color-outline-variant); }
+.project-ticket:last-child { border-bottom:0; }
+.project-ticket-title,.project-ticket-admins,.project-ticket-agents { display:grid; gap:8px; min-width:0; }
+.project-ticket-title .badge { justify-self:start; }.project-ticket-title .ticket-open { text-align:left; font-size:1rem; }
+.project-ticket small,.admin-table small { display:block; color:var(--color-on-surface-variant); }
+.ticket-column-label { color:var(--color-on-surface-variant); font-size:.75rem; }
+.project-ticket-agent { display:grid; grid-template-columns:minmax(110px,1fr) auto; align-items:center; gap:4px 12px; font-size:.8rem; }
+.project-ticket-agent>.supporting { grid-column:2; margin:0; font-size:.72rem; }
+.administration-panel { max-width:1200px; }.administration-panel h1 { font-size:1.5rem; }
+.administrator-form { max-width:680px; padding:24px; background:var(--color-surface-container-lowest); border:1px solid var(--color-outline-variant); border-radius:12px; }
+.administrator-form>fieldset { border:0; padding:0; display:grid; gap:18px; }.administrator-form h2 { margin-bottom:24px; }
+.administrator-form label { display:grid; gap:8px; }.administrator-form small { color:var(--color-on-surface-variant); font-weight:400; }
+.administrator-form .project-grants { border:1px solid var(--color-outline-variant); padding:16px; border-radius:8px; max-height:260px; overflow:auto; }
+.administrator-form .project-grants label,.administrator-form .checkbox-label { display:flex; align-items:center; gap:10px; margin-block:8px; }
+.administrator-form input[type=checkbox] { width:18px; height:18px; flex:none; }
+.admin-table { background:var(--color-surface-container-lowest); border:1px solid var(--color-outline-variant); border-radius:12px; }
+.workspace .sidebar-foot .button[aria-current] { background:white; color:#12366b; }
+@media(max-width:1199px) {.project-ticket { grid-template-columns:minmax(160px,1fr) minmax(240px,2fr) auto;gap:16px; }.project-ticket-admins { grid-column:1;grid-row:2; }.project-ticket-agents { grid-column:2;grid-row:1 / span 2; }.project-ticket>.action-menu { grid-column:3;grid-row:1; }}
+@media(max-width:599px) {.project-ticket { grid-template-columns:minmax(0,1fr) auto; }.project-ticket-admins { grid-row:2;grid-column:1 / -1; }.project-ticket-agents { grid-row:3;grid-column:1 / -1; }.project-ticket>.action-menu { grid-column:2; }.administrator-form { padding:16px; }}
+.project-ticket .ticket-open { border:0; background:transparent; color:var(--color-on-surface); padding:0; min-height:36px; font-weight:700; cursor:pointer; }
+.project-ticket .ticket-open::after { content:none; }
+.project-ticket .ticket-open:hover { color:var(--bridge-action); text-decoration:underline; }
+.administrator-form .project-grants label { flex-direction:row; justify-content:flex-start; }
+.workspace .sidebar-foot .button[aria-current] .titanium-icon>span { filter:none; }

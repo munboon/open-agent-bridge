@@ -94,15 +94,15 @@ export function createOwnerAuth(database: Pool, input: OwnerAuthConfig) {
         if (ctx.body?.disableSession) {
           throw new APIError('FORBIDDEN', { code: 'AUTH_OPTION_DISABLED', message: 'A browser session is required for sign-in.' });
         }
-        // This installation has one locally provisioned owner. Resolve its
-        // admin login name on the server; the stored email remains its identity.
-        if (ctx.path === '/sign-in/email' && typeof ctx.body?.email === 'string' && ctx.body.email.trim().toLowerCase() === 'admin') {
-          const owners = await database.query<{ email: string }>(
-            'SELECT u.email FROM "user" u JOIN bridge_owner_state o ON o.owner_id=u.id ' +
-            'WHERE EXISTS (SELECT 1 FROM account a WHERE a."userId"=u.id AND a."providerId"=\'credential\' AND a."accountId"=u.id) LIMIT 2',
-          );
-          if (owners.rowCount !== 1) throw new APIError('UNAUTHORIZED', { code: 'INVALID_EMAIL_OR_PASSWORD', message: 'Invalid username or password.' });
-          ctx.body.email = owners.rows[0].email;
+        if(ctx.path==='/sign-in/email'&&typeof ctx.body?.email==='string'&&!ctx.body.email.includes('@')){
+          const username=ctx.body.email.trim().toLowerCase();
+          const matched=await database.query('SELECT u.email FROM bridge_administrators m JOIN "user" u ON u.id=m.user_id WHERE m.username=$1',[username]);
+          if(matched.rowCount===1)ctx.body.email=matched.rows[0].email;
+          else if(username==='admin'){
+            const legacy=await database.query(`SELECT u.email FROM "user" u JOIN bridge_owner_state o ON o.owner_id=u.id WHERE NOT EXISTS(SELECT 1 FROM bridge_administrators m WHERE m.user_id=u.id) AND EXISTS(SELECT 1 FROM account a WHERE a."userId"=u.id AND a."providerId"='credential') LIMIT 2`);
+            if(legacy.rowCount!==1)throw new APIError('UNAUTHORIZED',{code:'INVALID_EMAIL_OR_PASSWORD',message:'Invalid username or password.'});
+            ctx.body.email=legacy.rows[0].email;
+          }else throw new APIError('UNAUTHORIZED',{code:'INVALID_EMAIL_OR_PASSWORD',message:'Invalid username or password.'});
         }
         // Sign-out always remains available to clear a disabled user's cookie.
         if (ctx.path === '/sign-out') return;

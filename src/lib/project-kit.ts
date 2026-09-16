@@ -1,3 +1,4 @@
+import {fail} from './protocol';
 import {promptTemplateSchema,workInstructionsSchema,requireCustomInstructions} from './agent-template-schema';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
@@ -15,13 +16,13 @@ export const projectSetupSchema=z.strictObject({name:label,client_label:label,en
 // Nothing is created until the owner submits their complete configuration.
 export async function provisionProject(database:Pool,owner:Owner,body:unknown,key:string|null=null){
  const input=projectSetupSchema.parse(body);
- return ownerTransaction(database,owner,client=>idempotent(client,owner.id,'project.setup',key,input,async()=>{
-  const projectId=randomUUID(),actor={id:owner.id,owner_id:owner.id,project_id:projectId};
+ return ownerTransaction(database,owner,client=>{if(owner.role==='project')fail(403,'PLATFORM_REQUIRED','Only platform administrators can create projects.');return idempotent(client,owner.id,'project.setup',key,input,async()=>{
+  const projectId=randomUUID(),actor={id:owner.userId??owner.id,owner_id:owner.id,project_id:projectId};
   await client.query('INSERT INTO bridge_projects(id,owner_id,name,client_label) VALUES($1,$2,$3,$4)',[projectId,owner.id,input.name,input.client_label]);await audit(client,actor,'project.create',projectId);
   for(const environment of input.environments){
    const environmentId=randomUUID();await client.query('INSERT INTO bridge_environments(id,project_id,name) VALUES($1,$2,$3)',[environmentId,projectId,environment.name]);await audit(client,actor,'environment.create',environmentId);
    for(const agent of environment.agents){const agentId=randomUUID();await client.query('INSERT INTO bridge_agents(id,project_id,environment_id,name,role,prompt_template,work_instructions,active) VALUES($1,$2,$3,$4,$5,$6,$7,true)',[agentId,projectId,environmentId,agent.name,agent.prompt_template==='development'?'development':'deployment',agent.prompt_template,agent.work_instructions??null]);await audit(client,actor,'agent.create',agentId);await prepareAgentAccess(client,owner.id,projectId,agentId);}
   }
   return {projectId};
- },async result=>{if(!(await client.query('SELECT id FROM bridge_projects WHERE id=$1 AND owner_id=$2',[result.projectId,owner.id])).rowCount)inaccessible();}));
+ },async result=>{if(!(await client.query('SELECT id FROM bridge_projects WHERE id=$1 AND owner_id=$2',[result.projectId,owner.id])).rowCount)inaccessible();});});
 }

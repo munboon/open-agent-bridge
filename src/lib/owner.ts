@@ -18,7 +18,7 @@ export function ownerAuthErrorResponse(error: unknown): Response {
 }
 
 export function createOwnerGuard(auth: OwnerAuth, database: Pool) {
-  return async (request: Request): Promise<{ id: string; email: string }> => {
+  return async (request: Request): Promise<import('./admin-service').Owner> => {
     // This boundary serves browser administration. Machine keys are separate.
     if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method)) {
       const expected = new URL(auth.options.baseURL as string).origin;
@@ -40,22 +40,22 @@ export function createOwnerGuard(auth: OwnerAuth, database: Pool) {
     }
     if (!session) throw new OwnerAuthError(401, 'OWNER_UNAUTHENTICATED');
     const result = await database.query<{
-      id: string; email: string; active: boolean;
+      id: string; email: string; active: boolean;workspace:string;role:'platform'|'project';
     }>(
-      'SELECT u.id, u.email, o.active ' +
+      "SELECT u.id,u.email,o.active,COALESCE(m.workspace_owner_id,u.id) AS workspace,COALESCE(m.role,'platform') AS role " +
       'FROM "session" s JOIN "user" u ON u.id = s."userId" ' +
-      'JOIN bridge_owner_state o ON o.owner_id = u.id ' +
+      'JOIN bridge_owner_state o ON o.owner_id = u.id LEFT JOIN bridge_administrators m ON m.user_id=u.id ' +
       'WHERE s.id = $1 AND s."userId" = $2 AND s."expiresAt" > now()',
       [session.session.id, session.user.id],
     );
     const owner = result.rows[0];
     if (!owner) throw new OwnerAuthError(401, 'OWNER_UNAUTHENTICATED');
     if (!owner.active) throw new OwnerAuthError(403, 'OWNER_DISABLED');
-    return { id: owner.id, email: owner.email };
+    return owner.workspace===owner.id?{id:owner.id,email:owner.email}:{id:owner.workspace,userId:owner.id,email:owner.email,role:owner.role};
   };
 }
 
-export async function requireOwner(request: Request): Promise<{ id: string; email: string }> {
+export async function requireOwner(request: Request): Promise<import('./admin-service').Owner> {
   const [{ pool }, auth] = await Promise.all([import('./db'), getOwnerAuth()]);
   return createOwnerGuard(auth, pool)(request);
 }

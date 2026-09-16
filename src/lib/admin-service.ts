@@ -13,17 +13,23 @@ import { fail, inaccessible, label, uuid } from './protocol';
 import { messageBody } from './protocol';
 import { idempotent } from './messaging';
 
-export type Owner = { id: string; email: string };
+export type Owner = { id: string; email: string; userId?:string; role?:'platform'|'project' };
 export async function ownerTransaction<T>(database: Pool, owner: Owner, work: (client: Transaction)=>Promise<T>) {
   return transaction(database,async client=> {
-    const state=await client.query('SELECT active FROM bridge_owner_state WHERE owner_id=$1 FOR UPDATE',[owner.id]);
-    if(!state.rows[0]?.active) fail(403,'OWNER_DISABLED','Owner administration is unavailable.');
+    const principal=owner.userId??owner.id;
+    const tenant=await client.query('SELECT active FROM bridge_owner_state WHERE owner_id=$1 FOR UPDATE',[owner.id]);
+    if(!tenant.rows[0]?.active)fail(403,'OWNER_DISABLED','Workspace access is unavailable.');
+    const state=await client.query(`SELECT o.active,COALESCE(m.workspace_owner_id,o.owner_id) AS workspace,COALESCE(m.role,'platform') AS role FROM bridge_owner_state o LEFT JOIN bridge_administrators m ON m.user_id=o.owner_id WHERE o.owner_id=$1 FOR UPDATE OF o`,[principal]);
+    const member=state.rows[0];
+    if(!member?.active||member.workspace!==owner.id)fail(403,'OWNER_DISABLED','Administrator access is unavailable.');
+    owner.role=member.role;
     return work(client);
   });
 }
-async function projectFor(client: Transaction,owner: Owner,id: string) {
+export async function projectFor(client: Transaction,owner: Owner,id: string) {
   const result=await client.query('SELECT * FROM bridge_projects WHERE id=$1 AND owner_id=$2',[id,owner.id]);
   if(!result.rowCount) inaccessible();
+  if(owner.role==='project'&&!(await client.query('SELECT 1 FROM bridge_administrator_projects WHERE user_id=$1 AND project_id=$2',[owner.userId??owner.id,id])).rowCount)inaccessible();
   return result.rows[0];
 }
 export async function adminOperation(database: Pool,owner: Owner,method: string,path: string[],body: unknown,options:{key?:string|null;query?:URLSearchParams}={}) {
@@ -33,20 +39,23 @@ export async function adminOperation(database: Pool,owner: Owner,method: string,
         'id',a.id,'name',a.name,'role',a.role,'active',a.active,'environment_id',a.environment_id,'environment_name',e.name
         ) ORDER BY a.name,a.id) FROM bridge_agents a JOIN bridge_environments e ON e.id=a.environment_id
         WHERE a.project_id=p.id),'[]'::jsonb) AS agents
-        FROM bridge_projects p WHERE p.owner_id=$1 ORDER BY p.created_at DESC`,[owner.id]);
+        FROM bridge_projects p WHERE p.owner_id=$1 AND ($3::boolean OR EXISTS(SELECT 1 FROM bridge_administrator_projects ap WHERE ap.user_id=$2 AND ap.project_id=p.id)) ORDER BY p.created_at DESC`,[owner.id,owner.userId??owner.id,owner.role!=='project']);
       const statuses=await agentStatuses(client,owner.id);
-      return {projects:projects.rows.map(project=>({...project,agents:project.agents.map((agent:{id:string})=>({...agent,status:statuses.get(agent.id)}))}))};
+      const profile=(await client.query(`SELECT u.name,u.email,m.username,COALESCE(m.role,'platform') AS role FROM "user" u LEFT JOIN bridge_administrators m ON m.user_id=u.id WHERE u.id=$1`,[owner.userId??owner.id])).rows[0];
+      for(const project of projects.rows)project.administrators=(await client.query(`SELECT u.name,m.username FROM bridge_administrators m JOIN "user" u ON u.id=m.user_id JOIN bridge_owner_state o ON o.owner_id=m.user_id WHERE m.workspace_owner_id=$1 AND o.active AND (m.role='platform' OR EXISTS(SELECT 1 FROM bridge_administrator_projects ap WHERE ap.user_id=m.user_id AND ap.project_id=$2)) ORDER BY u.name`,[owner.id,project.id])).rows;
+      return {administrator:profile,projects:projects.rows.map(project=>({...project,agents:project.agents.map((agent:{id:string})=>({...agent,status:statuses.get(agent.id)}))}))};
     }
     if(method==='POST' && path.join('/')==='projects') {
+      if(owner.role==='project')fail(403,'PLATFORM_REQUIRED','Only platform administrators can create projects.');
       const input=z.strictObject({name:label,client_label:label}).parse(body);
       const row=await client.query('INSERT INTO bridge_projects(id,owner_id,name,client_label) VALUES($1,$2,$3,$4) RETURNING *',[randomUUID(),owner.id,input.name,input.client_label]);
-      await audit(client,{id:owner.id,owner_id:owner.id,project_id:row.rows[0].id},'project.create',row.rows[0].id);
+      await audit(client,{id:owner.userId??owner.id,owner_id:owner.id,project_id:row.rows[0].id},'project.create',row.rows[0].id);
       return row.rows[0];
     }
     if(path[0]!=='projects' || path.length<2) inaccessible();
     const id=uuid.parse(path[1]);
     await projectFor(client,owner,id);
-    const actor={id:owner.id,owner_id:owner.id,project_id:id};
+    const actor={id:owner.userId??owner.id,owner_id:owner.id,project_id:id};
     if(method==='GET'&&path.length===6&&path[2]==='agents'&&path[4]==='enrollments') {
       const row=(await client.query(`SELECT CASE WHEN k.bound_at IS NOT NULL THEN 'claimed' WHEN k.revoked_at IS NOT NULL THEN 'revoked' WHEN k.enrollment_expires_at<=now() OR k.expires_at<=now() THEN 'expired' ELSE 'pending' END AS status,k.enrollment_expires_at AS expires_at,k.bound_at AS registered_at FROM bridge_credentials k JOIN bridge_agents a ON a.id=k.agent_id WHERE k.id=$1 AND a.id=$2 AND a.project_id=$3 AND k.enrollment_expires_at IS NOT NULL`,[uuid.parse(path[5]),uuid.parse(path[3]),id])).rows[0];
       if(!row)inaccessible();return row;

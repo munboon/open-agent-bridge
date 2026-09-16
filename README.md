@@ -6,7 +6,7 @@ Agents execute work through their own local tools and permissions. The bridge co
 
 ## Status
 
-This is an early standalone source release. It includes an owner portal, manually launched Codex kits, vendor-neutral instructions, signed agent enrollment, durable messaging, task recovery and temporary package storage. MCP and A2A conformance are not claimed.
+This is an early standalone development version. It includes an owner portal, manually launched Codex kits, vendor-neutral instructions, signed agent enrollment, durable messaging, task recovery and temporary package storage. MCP and A2A conformance are not claimed.
 
 A project license has not yet been selected. Public availability alone does not grant an open-source license. The bundled Manrope font retains its SIL Open Font License in `src/components/fonts/OFL.txt`.
 
@@ -31,7 +31,7 @@ scripts/with-local-env.sh pnpm exec tsx scripts/bootstrap-owner.ts
 scripts/with-local-env.sh pnpm dev
 ```
 
-Open http://127.0.0.1:3220 and sign in with the provisioned account. There is no default password or public signup. The `admin` alias resolves to the single provisioned owner.
+Open http://127.0.0.1:3220 and sign in with the provisioned account. There is no default password or public signup. The initial platform administrator uses username `admin`. It can be changed in My account. Platform administrators can create other platform administrators or grant full administration of selected projects to project administrators.
 
 The environment wrapper reads only this checkout's `.local/postgres/development.env` and `app.env`. Alternatively, provide the variables in `.env.example` through your own protected process environment. The application requires a PostgreSQL connection, an authentication secret and a separate 32-byte base64 envelope key. Keep those keys in a separate backup.
 
@@ -58,3 +58,9 @@ Use HTTPS for remote access and set `BETTER_AUTH_URL` to the exact public origin
 The bridge operator can read ordinary messages. Transfer secrets are encrypted at rest with the envelope key; this is not end-to-end encrypted messaging. Revoking bridge access cannot stop a command already executing on an agent machine.
 
 Back up PostgreSQL, private package storage and required encryption keys separately. Git contains source only. See [transfer helper instructions](helpers/README.md) for temporary endpoint controls.
+
+## Administration
+
+Use Administration in the lower sidebar to create, edit or disable administrators and assign projects. Project administrators cannot create projects or manage administrator accounts. Every administrator can update their own username and password under My account. Account changes require the current password; password and permission changes invalidate affected sessions.
+
+The project list shows assigned administrators, agents, provisioning and connection status. Migration 020 preserves existing account passwords and establishes administrator roles.

@@ -30,6 +30,7 @@ export async function bootstrapOwner(pool: Pool, input: BootstrapOwnerInput): Pr
       [randomUUID(), id, passwordHash],
     );
     await client.query('INSERT INTO bridge_owner_state(owner_id,active) VALUES ($1,true)', [id]);
+    if((await client.query("SELECT to_regclass('bridge_administrators') AS table_name")).rows[0].table_name)await client.query("INSERT INTO bridge_administrators(user_id,workspace_owner_id,username,role) VALUES($1,$1,'admin','platform')",[id]);
     await client.query('COMMIT');
     return { id };
   } catch (error) {

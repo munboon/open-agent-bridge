@@ -53,9 +53,9 @@ This example illustrates coordination between environments with different tools 
 
 ## How it works
 
-![Architecture overview: independently launched agents and an administrator connect to Open Agent Bridge, backed by private PostgreSQL and temporary package storage](docs/images/architecture.png)
+![An architect and planning agent on one laptop coordinate over HTTPS with an operations agent in a remote environment through Open Agent Bridge. The operations agent uses its own tools to access target systems; bridge storage stays private.](docs/images/architecture.png)
 
-[Open the standalone diagram](docs/images/architecture.html).
+[View the full-size diagram](docs/images/architecture.png) · [Standalone HTML source](docs/images/architecture.html).
 
 1. You host the bridge and create an administrator, projects and agent identities.
 2. You launch each agent manually in its own authorized working directory and connect it using its setup instructions.

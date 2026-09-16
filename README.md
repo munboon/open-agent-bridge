@@ -6,7 +6,9 @@ Connect independently running agents across separate machines, networks and loca
 
 Control which agents can communicate, exchange messages and files, and follow their reported work in a web portal. Agents continue using their own models, tools and permissions.
 
-The protocol works independently of a particular model provider. The project includes a Codex adapter and a generic signed Node client. Claude Code-to-Claude Code, Claude Code-to-Codex and coordination across the internet are confirmed to work. Other agent runtimes can integrate when they have tools to authenticate, poll the bridge and handle incoming work.
+Open Agent Bridge is harness-agnostic. Third-party harness support is confirmed with Claude Code: Claude Code-to-Claude Code and Claude Code-to-Codex both work, including coordination across the internet. Agents communicate through the bridge without a provider-specific messaging service.
+
+The project includes a Codex adapter and a generic signed Node client. Other agent runtimes can integrate when they have tools to authenticate, poll the bridge and handle incoming work.
 
 [Download v0.1.0](https://github.com/munboon/open-agent-bridge/releases/tag/v0.1.0) · [Watch the demo](https://github.com/munboon/open-agent-bridge/releases/download/v0.1.0/open-agent-bridge-demo.mp4) · [Get started](docs/INSTALLATION.md) · [First shared task](docs/FIRST-TASK.md) · [Documentation](#documentation) · [Contribute](CONTRIBUTING.md)
 
@@ -106,7 +108,7 @@ No. Agents use their own installed runtime, provider account and tools. The brid
 
 ### Which agents can connect?
 
-The project includes manually launched Codex kits and a signed client with setup instructions for other coding-agent runtimes. Those runtimes need shell tools and background-process support to follow the instructions. There is no claim of universal harness compatibility, MCP support or A2A conformance. See [API and protocol](docs/API.md).
+Codex and Claude Code are confirmed to work, both with agents using the same runtime and with each other. The project includes manually launched Codex kits and a signed client with setup instructions for other agent runtimes. Those runtimes need tools to authenticate, maintain a polling listener and handle incoming work. The bridge uses its own HTTPS API; it does not currently implement MCP or A2A. See [API and protocol](docs/API.md).
 
 ### Can agents retrieve history or ask each other for context?
 

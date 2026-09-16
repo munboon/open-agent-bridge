@@ -1,0 +1,61 @@
+'use client';
+
+import {AgentAvatar} from './AgentAvatar';
+import {promptTemplateNames} from '../lib/agent-instructions';
+import { useState } from 'react';
+import type { Snapshot } from './OwnerPortal';
+import { agentValidity, matchesAgentFilter } from '../lib/agent-dashboard';
+import { Icon, Modal } from './ui';
+
+const connections = { connected: 'Connected', disconnected: 'Disconnected', not_connected: 'Not launched', setup_needed: 'Setup needed', blocked: 'Access issue' };
+const work = { working: 'Working', idle: 'Idle', waiting: 'Waiting', attention: 'Needs attention', unknown: 'Not reported' };
+function contact(value: string | null, now: number) {
+  if (!value) return 'Never';
+  const elapsed = Math.max(0, Math.floor((now-new Date(value).getTime())/1000));
+  if (!Number.isFinite(elapsed)) return 'Unavailable';
+  if (elapsed < 60) return `${elapsed}s ago`;
+  if (elapsed < 3600) return `${Math.floor(elapsed/60)}m ago`;
+  if (elapsed < 86400) return `${Math.floor(elapsed/3600)}h ago`;
+  return `${Math.floor(elapsed/86400)}d ago`;
+}
+type Props = {
+  snapshot: Snapshot; stale: boolean; onAgents: () => void; onExtend: () => void;
+  onRefresh: () => void; onMessage: (id: string) => void; onConfig: (id: string) => void; onManage: (id:string, action:'revoke'|'state') => void;
+};
+export function AgentControlCenter({snapshot,stale,onAgents,onExtend,onRefresh,onMessage,onConfig,onManage}: Props) {
+  const [search,setSearch] = useState('');
+  const [filter,setFilter] = useState('all');
+  const [expanded,setExpanded] = useState<Record<string,boolean>>({});
+  const [launch,setLaunch] = useState<Snapshot['agents'][number] | null>(null);
+  const now=Date.now();
+  const environment=(id:string)=>snapshot.environments.find(e=>e.id===id)?.name??'Unknown environment';
+  const rows=snapshot.agents.map(agent=>({agent,validity:agentValidity(agent.id,snapshot.credentials,now)}));
+  const visible=rows.filter(({agent,validity})=>`${agent.name} ${agent.prompt_template??agent.role} ${environment(agent.environment_id)}`.toLowerCase().includes(search.trim().toLowerCase()) && (stale || matchesAgentFilter(agent.status,filter,validity)));
+  const count=(predicate:(agent:Snapshot['agents'][number])=>boolean)=>stale?'—':snapshot.agents.filter(predicate).length;
+  const expiring=stale?[]:rows.filter(({agent,validity})=>agent.active && ['expiring','expired'].includes(validity.state));
+  return <section className="agent-control-center" aria-labelledby="agent-control-title">
+    <header className="control-center-heading"><div><h2 id="agent-control-title">Agents</h2><p>Connection, work and access across your environments.</p></div><div className="button-row"><button className="button button-outline" onClick={onAgents}>Manage agents</button><button className="button button-outline" onClick={onExtend} disabled={!snapshot.agents.length}><Icon name="refresh"/>Extend access</button></div></header>
+    <div className="agent-summary" aria-label="Agent summary"><strong>{snapshot.agents.length} {snapshot.agents.length===1?'agent':'agents'} total</strong><div className="agent-summary-connections"><span><i className="summary-connected" aria-hidden="true"/>{count(a=>a.status?.connection==='connected')} connected</span><span>{count(a=>a.status?.connection!=='connected')} not connected</span></div><p>{stale?'Connection updates unavailable.':`${count(a=>a.status?.work==='working')} reporting work · ${count(a=>a.status?.work==='waiting'||a.status?.work==='attention')} waiting / needs attention`}</p><small>Connection shows availability. Activity appears when reported; unreported work is not idle.</small></div>
+    <div className="control-table-heading"><div><h3>Live agents</h3><p>{stale?'Updates unavailable. Displayed records are from the last successful refresh.':'Connection, current work and access at a glance.'}</p></div><div className="control-tools"><label className="agent-search"><span className="sr-only">Search agents or environments</span><Icon name="search"/><input type="search" value={search} onChange={event=>setSearch(event.target.value)} placeholder="Search agents"/></label><label className="agent-filter"><span className="sr-only">Filter agents by status</span><Icon name="filter"/><select value={filter} disabled={stale} onChange={event=>setFilter(event.target.value)}><option value="all">All statuses</option><option value="connected">Connected</option><option value="offline">Not connected</option><option value="working">Working</option><option value="attention">Needs attention</option></select></label><button className="button button-outline icon-button" onClick={onRefresh} aria-label="Refresh agent status"><Icon name="refresh"/></button></div></div>
+    <div className="control-table-scroll" tabIndex={0} role="region" aria-label="Agent status table"><table className="control-agent-table" role="table"><caption className="sr-only">{visible.length} of {rows.length} agents. Connection requires authenticated contact within 75 seconds.</caption><thead><tr>{['Agent','Environment','Connection','Work status','Current task / activity','Last contact','Access validity','Actions'].map(title=><th key={title} scope="col">{title}</th>)}</tr></thead><tbody>{visible.map(({agent,validity})=> {
+      const status=agent.status;
+      const connection=stale||!status?'unknown':status.connection;
+      const task=status?.task_title;
+      return <tr key={agent.id} className={expanded[agent.id]?'agent-expanded':undefined}>
+        <td className="control-agent-name"><div className="control-agent-identity"><AgentAvatar appearance={agent.appearance} className="control-avatar"/><div><strong>{agent.name}</strong><small>{promptTemplateNames[(agent.prompt_template??agent.role) as keyof typeof promptTemplateNames]??'Custom'}</small></div></div></td>
+        <td><span className="mobile-field-label">Environment</span><span className={`environment-tag role-${agent.role}`}>{environment(agent.environment_id)}</span></td>
+        <td><span className="mobile-field-label">Connection</span><span className={`agent-signal signal-${connection}`}><i aria-hidden="true"/>{connection==='unknown'?'Unavailable':connections[connection]}</span></td>
+        <td><span className="mobile-field-label">Work status</span><span className={`work-tag work-${stale?'unknown':status?.work??'unknown'}`}>{stale?'Unknown':work[status?.work??'unknown']}</span></td>
+        <td className="control-task"><span className="mobile-field-label">Current task / activity</span><strong>{stale?'Status unavailable':task??(connection==='connected'?'No active bridge task':connection==='not_connected'?'Not launched yet':connection==='setup_needed'?'Config download needed':connection==='blocked'?'Access blocked':'No recent contact')}</strong><small>{stale?'Refresh to verify current activity.':task?(connection==='connected'?'Reported bridge task':'Last reported task'):status?.reason}</small>{!stale && ['disconnected','not_connected'].includes(connection) && <button className="control-inline-action" onClick={()=>setLaunch(agent)}>Launch instructions</button>}</td>
+        <td><span className="mobile-field-label">Last contact</span>{stale?'Unavailable':agent.last_seen_at?<time dateTime={agent.last_seen_at} title={new Date(agent.last_seen_at).toLocaleString()}>{contact(agent.last_seen_at,now)}</time>:'Never'}</td>
+
+        <td className={`control-validity validity-${stale?'unknown':validity.state}`}><span className="mobile-field-label">Access validity</span><strong>{stale?'Unavailable':validity.state==='missing'?'No valid access':validity.state==='expired'?'Expired':`${validity.days} ${validity.days===1?'day':'days'} left`}</strong>{!stale&&validity.expiry&&<small>{validity.count>1?'Next expiry':'Expires'} {new Date(validity.expiry).toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'})}{validity.count>1&&` · ${validity.count} credentials`}</small>}</td>
+        <td className="control-row-actions"><span className="mobile-field-label">Actions</span><div><button className="button button-text mobile-agent-details" aria-expanded={!!expanded[agent.id]} aria-label={`${expanded[agent.id]?'Hide':'Show'} details for ${agent.name}`} onClick={()=>setExpanded(previous=>({...previous,[agent.id]:!previous[agent.id]}))}>{expanded[agent.id]?'Less':'Details'}<Icon name="chevron"/></button><button className="button button-outline" onClick={()=>onMessage(agent.id)} aria-label={`Message ${agent.name}`}>Message</button><button className="button button-outline icon-button" disabled={!agent.active||snapshot.project.state!=='active'} onClick={()=>onConfig(agent.id)} aria-label={`Download ${agent.name} config`} title={`Download ${agent.name} config`}><Icon name="download"/></button><button className="button button-outline" popoverTarget={`manage-${agent.id}`} onClick={event=>{const rect=event.currentTarget.getBoundingClientRect();const panel=document.getElementById(`manage-${agent.id}`);if(panel){panel.style.left=`${Math.max(8,Math.min(rect.right-210,window.innerWidth-218))}px`;panel.style.top=`${rect.bottom+130>window.innerHeight?Math.max(8,rect.top-130):rect.bottom+6}px`;}}}>Manage<Icon name="settings"/></button><div id={`manage-${agent.id}`} popover="auto" className="control-manage-popover"><button onClick={event=>{event.currentTarget.parentElement?.hidePopover();onManage(agent.id,'state');}}>{agent.active?'Temporarily disable':'Enable agent'}</button><button disabled={!snapshot.credentials.some(c=>c.agent_id===agent.id&&!c.revoked_at)} onClick={event=>{event.currentTarget.parentElement?.hidePopover();onManage(agent.id,'revoke');}}>Revoke access</button></div></div></td>
+      </tr>;
+    })}</tbody></table>{!visible.length&&<div className="control-empty"><h3>{rows.length?'No matching agents':'No agents yet'}</h3><p>{rows.length?'Try another name, environment or status.':'Add environments, then create and name their agents.'}</p><button className="button button-text" onClick={()=>{if(rows.length){setSearch('');setFilter('all');}else onAgents();}}>{rows.length?'Clear filters':'Manage agents'}</button></div>}</div>
+    {expiring.length>0&&<div className="control-expiry-alert" role="status"><Icon name="shield"/><p>{expiring.length===1?<><strong>{expiring[0].agent.name}</strong>{expiring[0].validity.state==='expired'?' access has expired.':` has access expiring in ${expiring[0].validity.days} days.`}</>:<><strong>{expiring.length} agents</strong> have expired access or credentials expiring within 14 days.</>}</p><button className="button button-outline" onClick={onExtend}>Extend validity</button></div>}
+    <div className="control-legend" aria-label="Status color legend">{[['connected','Connected'],['working','Working'],['waiting','Waiting / attention'],['disconnected','Disconnected / blocked'],['not_connected','Not launched / unknown']].map(([tone,label])=><span key={tone} className={`agent-signal signal-${tone}`}><i aria-hidden="true"/>{label}</span>)}</div>
+    <details className="status-help"><summary><Icon name="chevron"/>How agent status works</summary><p className="control-status-note">Connected means authenticated contact within 75 seconds. Work status comes from bridge tasks, not arbitrary terminal activity. Agents launch on their own machines.</p></details>
+    {launch&&<Modal title={`Launch ${launch.name}`} onClose={()=>setLaunch(null)}><div className="form-stack"><p>On this agent’s machine, open its extracted config folder and run the launcher.</p><label>Windows<code>.\Start-Agent.ps1</code></label><label>Ubuntu<code>bash Start-Agent.sh</code></label><p>The launcher asks for the project working directory.</p><p>Keep the agent running. Its connection status will update after it contacts the bridge.</p><div className="button-row"><button className="button button-outline" onClick={()=>{onConfig(launch.id);setLaunch(null);}}>Set up agent</button><button className="button button-primary" onClick={()=>setLaunch(null)}>Done</button></div></div></Modal>}
+  </section>;
+}

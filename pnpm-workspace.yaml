@@ -1,0 +1,5 @@
+allowBuilds:
+  esbuild: true
+saveExact: true
+strictPeerDependencies: true
+storeDir: .pnpm-store

@@ -1,0 +1,15 @@
+import {afterEach,beforeEach,expect,it,vi} from 'vitest';
+import {mkdtemp,rm,writeFile,readdir} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {randomUUID} from 'node:crypto';
+vi.mock('node:child_process',()=>({execFileSync:vi.fn()}));
+import {execFileSync} from 'node:child_process';
+import {storage,main} from '../scripts/bridge-client.mjs';
+const platform=Object.getOwnPropertyDescriptor(process,'platform')!;
+let folder:string;
+beforeEach(async()=>{folder=await mkdtemp(join(tmpdir(),'bridge-windows-acl-'));vi.stubEnv('LOCALAPPDATA',folder);Object.defineProperty(process,'platform',{...platform,value:'win32'});vi.mocked(execFileSync).mockImplementation((file,args)=>{if(file==='powershell.exe')return 'S-1-5-21-111-222-333-1001\r\n';if(file==='icacls.exe'&&args?.[3]==='*S-1-5-21-111-222-333-1001:(OI)(CI)F')return Buffer.from('');throw Error('Numeric SID requires an asterisk.');});});
+afterEach(async()=>{Object.defineProperty(process,'platform',platform);vi.unstubAllEnvs();vi.unstubAllGlobals();vi.resetAllMocks();await rm(folder,{recursive:true,force:true});});
+it('restricts Windows storage with a numeric SID grant before use',async()=>{const root=await storage({origin:'https://bridge.example.test',agentId:randomUUID()});expect(execFileSync).toHaveBeenCalledWith('icacls.exe',[root,'/inheritance:r','/grant:r','*S-1-5-21-111-222-333-1001:(OI)(CI)F'],{stdio:'pipe'});});
+it('stops enrollment before creating a key or sending credentials when ACL setup fails',async()=>{const fetch=vi.fn();vi.stubGlobal('fetch',fetch);vi.mocked(execFileSync).mockImplementation(file=>{if(file==='powershell.exe')return 'S-1-5-21-111-222-333-1001';throw Error('Access denied');});const input=join(folder,'input.json');await writeFile(input,JSON.stringify({origin:'https://bridge.example.test',agentId:randomUUID(),token:'synthetic-not-a-credential'}));await expect(main(['enroll',input])).rejects.toThrow('Access denied');expect(fetch).not.toHaveBeenCalled();const [root]=await readdir(join(folder,'OpenAgentBridge'));expect(await readdir(join(folder,'OpenAgentBridge',root))).toEqual([]);});
+it('rejects invalid Windows account identity without invoking icacls',async()=>{vi.mocked(execFileSync).mockReturnValue('unresolved-account');await expect(storage({origin:'https://bridge.example.test',agentId:randomUUID()})).rejects.toThrow('Unable to identify Windows account');expect(execFileSync).toHaveBeenCalledTimes(1);});

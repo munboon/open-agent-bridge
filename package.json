@@ -1,0 +1,39 @@
+{
+  "name": "open-agent-bridge",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.3.0",
+  "engines": {
+    "node": ">=24.15.0 <25"
+  },
+  "scripts": {
+    "dev": "next dev --hostname 127.0.0.1 --port 3220",
+    "build": "next build",
+    "start": "next start --hostname 127.0.0.1 --port 3220",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "preflight": "node scripts/preflight.mjs",
+    "db:status": "python3 scripts/dev-postgres.py status"
+  },
+  "dependencies": {
+    "better-auth": "1.7.3",
+    "drizzle-orm": "0.45.2",
+    "next": "16.3.4",
+    "pg": "8.23.0",
+    "pino": "10.3.1",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "zod": "4.5.4"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.3",
+    "@types/pg": "8.23.1",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.7",
+    "drizzle-kit": "0.31.10",
+    "tsx": "4.23.13",
+    "typescript": "7.0.2",
+    "vitest": "4.1.11"
+  }
+}

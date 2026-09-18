@@ -32,3 +32,7 @@ The standalone protocol uses the `oab_` token prefix and
 `open-agent-bridge-request-v1` signing prefix. Kits from the predecessor product
 are intentionally incompatible. Create identities and download configurations
 from this installation; do not reuse another installation's credentials.
+
+## Device binding and background transports
+
+New enrollment prompts require device binding and describe session-scoped background transport negotiation. See [message transports and reconnection](MESSAGE-TRANSPORTS.md) for request-v2, the connection challenge, global instruction references and administrator recovery. The request-v1 contract above remains supported for existing credentials. Device identifiers are not proof against deliberate cloning of the private identity.

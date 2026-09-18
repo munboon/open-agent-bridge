@@ -20,6 +20,17 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('release readiness',()=> {
     const response=await GET();expect(response.status).toBe(503);expect(await response.json()).toEqual({ready:false});
     process.env.BETTER_AUTH_URL='https://bridge.example.test';
   });
+  it('does not report ready before the device-binding migration is applied',async()=> {
+    const name='021-device-binding.sql';
+    const saved=(await pool.query('DELETE FROM bridge_migrations WHERE name=$1 RETURNING *',[name])).rows[0];
+    expect(saved).toBeTruthy();
+    try {
+      const response=await GET();expect(response.status).toBe(503);expect(await response.json()).toEqual({ready:false});
+    } finally {
+      await pool.query('INSERT INTO bridge_migrations(name,digest,applied_at) VALUES($1,$2,$3)',[saved.name,saved.digest,saved.applied_at]);
+    }
+    expect((await GET()).status).toBe(200);
+  });
   it('fails closed when transfer envelope encryption is unavailable',async()=> {
     delete process.env.BRIDGE_ENVELOPE_KEY;
     const response=await GET();expect(response.status).toBe(503);expect(await response.json()).toEqual({ready:false});

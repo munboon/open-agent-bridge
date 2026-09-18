@@ -9,8 +9,9 @@ export async function GET() {
     const envelope=process.env.BRIDGE_ENVELOPE_KEY??'';
     if(!/^[A-Za-z0-9+/]{43}=$/.test(envelope)||Buffer.from(envelope,'base64').length!==32)throw Error('Configuration unavailable');
     const ready=await transaction(pool,async client=> {
-      const result=await client.query('SELECT 1 FROM bridge_migrations WHERE name=$1',['005-transfer-attempts.sql']);
-      return result.rowCount===1;
+      const required=['005-transfer-attempts.sql','021-device-binding.sql','022-agent-contact.sql'];
+      const result=await client.query('SELECT name FROM bridge_migrations WHERE name=ANY($1::text[])',[required]);
+      return result.rowCount===required.length;
     });
     return Response.json({ready},{status:ready?200:503,headers:{'Cache-Control':'no-store'}});
   }catch {

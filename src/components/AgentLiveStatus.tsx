@@ -1,5 +1,6 @@
 'use client';
 
+import {AgentContact} from './AgentContact';
 import {Icon} from './ui';
 import type { AgentStatus } from '../lib/agent-status';
 
@@ -29,7 +30,7 @@ export function AgentMonitor({ agents, environments, onAgents, onMessage, stale 
       <AgentLights status={agent.status} stale={stale}/>
       <p className="monitor-reason">{stale ? 'Live updates unavailable. Reconnect or refresh to verify status.' : agent.status?.reason ?? 'Waiting for status data'}</p>
       {!stale && agent.status?.task_title && <p className="monitor-task">Task: {agent.status.task_title}</p>}
-      <small>Last contact: {agent.status?.last_seen_at ? new Date(agent.status.last_seen_at).toLocaleTimeString() : 'Never'}</small>
+      <AgentContact status={agent.status} stale={stale}/>
       <button className="button button-outline" onClick={() => onMessage(agent.id)}>Message agent</button>
     </article>)}</div>}
     <p className="monitor-legend">Green: recent contact · Red: disconnected or access blocked · Blue: working · Amber: attention needed. Connected means authenticated contact within 75 seconds. Work reflects bridge tasks, not terminal activity.</p>

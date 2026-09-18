@@ -336,3 +336,17 @@ input::placeholder,textarea::placeholder { color:var(--color-on-surface-variant)
 .project-work-summary p { margin:0; color:var(--color-on-surface-variant); font-size:.85rem; }
 .control-agent-table .control-row-actions { width:76px; min-width:76px; }
 .agent-actions-trigger { min-width:44px; min-height:44px; }
+
+/* Contact estimates share the existing row; technical detail stays collapsed. */
+.contact-timing { font-size:.8125rem; min-width:0; }
+.contact-timing dl { margin:0; display:grid; gap:4px; font-variant-numeric:tabular-nums; }
+.contact-timing dl > div { display:flex; flex-wrap:wrap; gap:4px 10px; align-items:baseline; }
+.contact-timing dt { color:var(--color-on-surface-variant); }
+.contact-timing dd { margin:0; color:var(--color-on-surface); }
+.contact-timing .contact-overdue { font-weight:700; }
+.contact-details { margin-top:6px; }
+.contact-details summary { cursor:pointer; color:var(--color-primary); width:fit-content; }
+.contact-details summary:focus-visible { outline:2px solid var(--color-primary); outline-offset:3px; }
+.contact-details p { white-space:normal; max-width:32ch; margin:6px 0 0; line-height:1.5; color:var(--color-on-surface-variant); }
+.control-agent-table td.control-contact { min-width:190px; white-space:normal; }
+@media(max-width:839px) { .control-agent-table .control-contact { grid-column:1 / -1; } }

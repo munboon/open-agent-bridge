@@ -1,7 +1,7 @@
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { Pool } from 'pg';
 import { transaction, type Transaction } from './db';
-import {verifyProof,type RequestProof} from './request-proof';
+import {validateDevice,verifyProof,type RequestProof} from './request-proof';
 import { fail } from './protocol';
 
 export const digest = (value: string) => createHash('sha256').update(value).digest('hex');
@@ -30,7 +30,7 @@ export async function authenticate(client: Transaction, access: AgentAccess, req
   const owner = await client.query('SELECT active FROM bridge_owner_state WHERE owner_id=$1 FOR UPDATE', [lookup.rows[0].owner_id]);
   if (!owner.rows[0]?.active) fail(401,'UNAUTHORIZED','A valid agent credential is required.');
   const result = await client.query(`SELECT a.*,p.owner_id,p.state AS project_state,k.id AS credential_id,k.digest,
-    k.expires_at,k.revoked_at,k.enrollment_expires_at,k.public_key FROM bridge_credentials k JOIN bridge_agents a ON a.id=k.agent_id
+    k.expires_at,k.revoked_at,k.enrollment_expires_at,k.public_key,k.device_binding FROM bridge_credentials k JOIN bridge_agents a ON a.id=k.agent_id
     JOIN bridge_projects p ON p.id=a.project_id WHERE k.id=$1`, [match[1]]);
   const row = result.rows[0];
   const actual = Buffer.from(digest(access.token), 'hex');
@@ -38,6 +38,7 @@ export async function authenticate(client: Transaction, access: AgentAccess, req
     || row.project_state === 'archived' || !timingSafeEqual(actual, Buffer.from(row.digest, 'hex'))) fail(401,'UNAUTHORIZED','A valid agent credential is required.');
   if(row.enrollment_expires_at&&!row.public_key&&!access.enrollment)fail(401,'ENROLLMENT_REQUIRED','Claim the setup with a locally generated key first.');
   if(row.key_bound&&!row.public_key&&!access.enrollment)fail(401,'KEY_PROOF_REQUIRED','This agent uses key-bound access.');
+  if(row.device_binding&&validateDevice(access.proof?.device)!==row.device_binding)fail(403,'DEVICE_MISMATCH','This device does not match enrollment. Ask an administrator to replace access.');
   if(row.public_key)await verifyProof(client,row.credential_id,row.public_key,access.token,access.session,access.proof);
   if (requireSession && (!access.session || row.session_id !== access.session)) fail(409,'SESSION_CONFLICT','Start a session or ask the owner to authorize takeover.');
   await client.query('UPDATE bridge_agents SET last_seen_at=now() WHERE id=$1',[row.id]);

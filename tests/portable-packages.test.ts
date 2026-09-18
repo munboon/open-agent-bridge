@@ -179,6 +179,17 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('portable enrollment and bridge 
   let text='';while(true){const part=await reader.read();if(part.done)break;text+=new TextDecoder().decode(part.value);}
   expect(text).toContain('event: reconnect');expect(text).not.toContain('event: messages');
  });
+ it('closes an undrained SSE stream and releases its listener slot',async()=>{
+  const config=await agent('Slow stream consumer');await claim(config);
+  const open=()=>handleAgentRequest(new Request('http://127.0.0.1/api/v1/events',{headers:signedHeaders(config,'GET','/api/v1/events')}),db);
+  const first=await open();expect(first.status).toBe(200);
+  try {
+   // Leave the first response unread so its bounded event queue fills.
+   await new Promise(resolve=>setTimeout(resolve,2200));
+   const next=await open();
+   try {expect(next.status).toBe(200);} finally {await next.body?.cancel();}
+  } finally {await first.body?.cancel();}
+ });
  it.each(['websocket','sse','poll'])('runs the portable client with %s and verifies a multi-part parcel',async(mode)=>{
   const sender=await agent('Portable sender '+mode),recipient=await agent('Portable receiver '+mode);const local=await mkdtemp(join(tmpdir(),'bridge-client-test-'));const privateRoots:string[]=[];
   const server=createServer(async(req,res)=>{try{const parts:Buffer[]=[];for await(const part of req)parts.push(Buffer.from(part));const result=await handleAgentRequest(new Request(`http://127.0.0.1:${(server.address() as any).port}${req.url}`,{method:req.method,headers:req.headers as Record<string,string>,body:req.method==='POST'?Buffer.concat(parts):undefined}),db);res.writeHead(result.status,Object.fromEntries(result.headers));if(result.headers.get('content-type')?.includes('text/event-stream')){const reader=result.body!.getReader();res.on('close',()=>void reader.cancel());while(true){const part=await reader.read();if(part.done)break;res.write(Buffer.from(part.value));}res.end();}else res.end(Buffer.from(await result.arrayBuffer()));}catch{res.writeHead(500);res.end('{}');}});

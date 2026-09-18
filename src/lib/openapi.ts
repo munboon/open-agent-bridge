@@ -6,7 +6,7 @@ import { label, messageBody, plainMessage, taskAction, taskCreate, uuid } from '
 import { eventInput, manifestSchema, offerInput, receiptInput, transferInput } from './transfers';
 const schemas:Record<string,z.ZodType>={Confirm:z.strictObject({confirm:z.literal(true)}),HostMetrics:hostMetricsSchema,MessageInput:plainMessage,TaskInput:taskCreate,TaskAction:taskAction,
   Manifest:manifestSchema,TransferInput:transferInput,OfferInput:offerInput,ReceiptInput:receiptInput,TransferEvent:eventInput,
-  SessionInput:z.strictObject({takeover_token:z.string().optional()}),ConversationInput:z.strictObject({recipient_agent_id:uuid}),
+  SessionInput:z.strictObject({challenge:z.string().uuid().optional(),takeover_token:z.string().optional()}),ConversationInput:z.strictObject({recipient_agent_id:uuid}),
   Acknowledgements:z.strictObject({message_ids:z.array(uuid).min(1).max(100)}),Empty:z.strictObject({}),
   ProjectSetup:projectSetupSchema,ProjectInput:z.strictObject({name:label,client_label:label}),EnvironmentInput:z.strictObject({name:label.max(114),create_agent:z.boolean().optional(),role:z.enum(['development','deployment']).optional(),prompt_template:promptTemplateSchema.optional(),work_instructions:workInstructionsSchema.nullable().optional()}),
   AgentInput:z.strictObject({name:z.string().trim().max(120).optional(),role:z.enum(['development','deployment']).optional(),prompt_template:promptTemplateSchema.optional(),work_instructions:workInstructionsSchema.nullable().optional(),environment_id:uuid}),
@@ -64,6 +64,7 @@ const paths:Record<string,Record<string,Operation>>={};
 function route(method:string,path:string,summary:string,schema?:string,settings:{session?:boolean;idempotent?:boolean;owner?:boolean;query?:string[];response?:string;markdown?:boolean}={}) {
   const parameters:unknown[]=[...path.matchAll(/\{([^}]+)\}/g)].map(match=>({name:match[1],in:'path',required:true,schema:match[1]==='part'?{type:'integer',minimum:0,maximum:4095}:{type:'string',format:'uuid'}}));
   if(!settings.owner)for(const name of ['X-Bridge-Time','X-Bridge-Nonce','X-Bridge-Proof'])parameters.push({name,in:'header',required:false,schema:{type:'string'},description:'Required for key-bound identities. See docs/PORTABLE-AGENTS.md for the signed request format.'});
+  if(!settings.owner)parameters.push({name:'X-Bridge-Device',in:'header',required:false,schema:{type:'string',maxLength:300},description:'Required for device-bound enrollment and requests. JSON os, machine hash and installation UUID; signed by request-v2.'});
   if(!settings.owner&&settings.session!==false)parameters.push({name:'X-Bridge-Session',in:'header',required:true,schema:{type:'string',format:'uuid'}});
   if(settings.idempotent)parameters.push({name:'Idempotency-Key',in:'header',required:true,schema:{type:'string',minLength:8,maxLength:128,pattern:'^[A-Za-z0-9_.:-]+$'}});
   if(settings.owner&&method==='post')parameters.push({name:'Origin',in:'header',required:true,schema:{type:'string',format:'uri'},description:'Must exactly match the configured owner portal origin.'});
@@ -79,10 +80,15 @@ for(const topic of ['messaging','tasks','transfers','packages'])route('get',`/ap
 route('post','/api/v1/recipient-key','Register your own age encryption public key; matching retries succeed, replacement requires administrator recovery','RecipientKeyInput');
 route('get','/api/v1/conversations/{id}/recipient-key','Read the authenticated conversation recipient encryption key');
 route('get','/api/v1/peers','Discover permitted peers with prompt_template, role_name, public description and recipient keys; role remains a legacy compatibility field',undefined,{query:['limit','after']});
+route('post','/api/v1/sessions/challenge','Obtain a single-use 60-second challenge with a signed device-bound request before connecting','Empty',{session:false});
 route('post','/api/v1/sessions','Start or resume a key-bound session; legacy credentials replace the previous instance. Link enabled project peers except owner-disabled pairs','SessionInput',{session:false});
 route('post','/api/v1/sessions/current/close','Close the session and leave uncertain claims for reconciliation','Empty');
 route('post','/api/v1/conversations','Create or retrieve a conversation with a paired peer','ConversationInput',{idempotent:true});
 route('post','/api/v1/messages','Store a peer message or reply to an owner conversation; for owner replies use your own agent ID as recipient_agent_id, no peer pairing required','MessageInput',{idempotent:true});
+route('get','/api/v1/socket','WebSocket upgrade on the custom bridge server. Authenticate in the first frame using signed headers for GET /api/v1/events; never put credentials in the URL. Bootstrap advertises availability.');
+route('get','/api/v1/events','Authenticated SSE message batches with heartbeats. Reconnect every 20 seconds. Shares inbox capacity limits, rechecks authorization, and never acknowledges messages. Check bootstrap capabilities before selecting this transport.');
+paths['/api/v1/events'].get.responses={...paths['/api/v1/events'].get.responses as object,'200':{description:'Bounded SSE stream',content:{'text/event-stream':{schema:{type:'string'}}}}};
+paths['/api/v1/socket'].get.responses={'101':{description:'WebSocket upgraded; authentication is required in the first frame within five seconds.'}};
 route('get','/api/v1/inbox','Wait up to 20 seconds; an empty response keeps the session registered. Rediscover peers and tasks, then wait again until operator stop or harness shutdown. Never acknowledges by reading.',undefined,{query:['wait_seconds','limit']});
 route('post','/api/v1/acknowledgements','Acknowledge exact messages after durable local ledger recording','Acknowledgements');
 route('get','/api/v1/conversations/{id}/messages','Read ordered history including explicit retention gaps',undefined,{query:['after_sequence','limit']});

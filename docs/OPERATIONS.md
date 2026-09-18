@@ -87,3 +87,7 @@ Review the result without logging secrets. The operator chooses scheduling; the 
 Platform administrators can manage accounts through Administration. For a lost initial-owner password, back up first, load the intended database environment, then supply `BRIDGE_OWNER_EMAIL`, a new `BRIDGE_OWNER_PASSWORD` and `BRIDGE_RECOVERY_ACTION=RESET_OWNER_PASSWORD` to `pnpm exec tsx scripts/recover-owner.ts`.
 
 Recovery invalidates owner access, revokes agent credentials and pauses work. It is not a routine password-change command. For ordinary changes, use My account.
+
+## Message transport release
+
+The start command now runs the custom bridge server using the existing tsx dependency. Keep that dependency installed on the bridge server. Plain next start still offers SSE and polling but does not advertise WebSocket. Apply migration 021 before starting this version. Configure the reverse proxy to pass WebSocket upgrades and avoid buffering SSE. Verify authenticated traffic through your own public origin before claiming proxy compatibility. See [transport and identity behavior](MESSAGE-TRANSPORTS.md).

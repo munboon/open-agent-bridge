@@ -12,8 +12,9 @@ const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 export function signedHeaders(config,method,target,body='',key=''){
  const timestamp=String(Date.now()),nonce=randomBytes(24).toString('base64url');
- const proof=['open-agent-bridge-request-v1',method,target,timestamp,nonce,sha(config.token),config.session??'',key,sha(body)].join('\n');
- return {'Content-Type':'application/json',Authorization:'Bearer '+config.token,'X-Bridge-Session':config.session??'','X-Bridge-Time':timestamp,'X-Bridge-Nonce':nonce,'X-Bridge-Proof':sign(null,Buffer.from(proof),config.privateKey).toString('base64url'),...(key?{'Idempotency-Key':key}:{})};
+ const device=config.device?JSON.stringify(config.device):'';
+ const proof=[device?'open-agent-bridge-request-v2':'open-agent-bridge-request-v1',method,target,timestamp,nonce,sha(config.token),config.session??'',key,sha(body),...(device?[sha(device)]:[])].join('\n');
+ return {...(device?{'X-Bridge-Device':device}:{}),'Content-Type':'application/json',Authorization:'Bearer '+config.token,'X-Bridge-Session':config.session??'','X-Bridge-Time':timestamp,'X-Bridge-Nonce':nonce,'X-Bridge-Proof':sign(null,Buffer.from(proof),config.privateKey).toString('base64url'),...(key?{'Idempotency-Key':key}:{})};
 }
 function validate(config){
  const u=new URL(config.origin);if(u.origin!==config.origin||u.username||u.password)throw Error('Use a bridge origin without a path or credentials.');
@@ -49,7 +50,15 @@ export async function request(config,method,path,body,key=''){
  const response=await fetch(config.origin+target,{method,headers:signedHeaders(config,method,target,payload,key),body:method==='POST'?payload:undefined,redirect:'error',signal:AbortSignal.timeout(30000)});
  const result=await response.json();if(!response.ok){const error=Error(`${result.code??'REQUEST_FAILED'}: ${result.message??'Bridge request failed.'}`);error.status=response.status;throw error;}return result;
 }
-async function load(file){const publicConfig=validate(JSON.parse(await readFile(file,'utf8'))),root=await storage(publicConfig),config=await readPrivate(join(root,'identity.json'));if(config.origin!==publicConfig.origin||config.agentId!==publicConfig.agentId)throw Error('Identity does not match config.');return {root,config};}
+export async function deviceBinding(origin,installation){
+ let raw;
+ if(process.platform==='linux')raw=await readFile('/etc/machine-id','utf8');
+ else if(process.platform==='win32')raw=execFileSync('powershell.exe',['-NoProfile','-NonInteractive','-Command',"(Get-ItemProperty -LiteralPath 'HKLM:\\SOFTWARE\\Microsoft\\Cryptography' -Name MachineGuid).MachineGuid"],{encoding:'utf8',stdio:['ignore','pipe','pipe']});
+ else if(process.platform==='darwin'){const output=execFileSync('/usr/sbin/ioreg',['-rd1','-c','IOPlatformExpertDevice'],{encoding:'utf8',stdio:['ignore','pipe','pipe']});raw=/"IOPlatformUUID"\s*=\s*"([^"]+)"/.exec(output)?.[1];}
+ if(!raw||!/^([a-f0-9]{32}|[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$/i.test(raw.trim())||/^0+$/.test(raw.trim().replaceAll('-','')))throw Error('Device identification unavailable. Administrator recovery is required.');
+ return {os:process.platform,machine:sha('bridge-device-v1\n'+origin+'\n'+raw.trim().toLowerCase()),installation};
+}
+async function load(file){const publicConfig=validate(JSON.parse(await readFile(file,'utf8'))),root=await storage(publicConfig),config=await readPrivate(join(root,'identity.json'));if(config.origin!==publicConfig.origin||config.agentId!==publicConfig.agentId)throw Error('Identity does not match config.');if(config.device){const actual=await deviceBinding(config.origin,config.device.installation);if(JSON.stringify(actual)!==JSON.stringify(config.device))throw Error('Device changed. Request administrator re-enrollment.');config.device=actual;}return {root,config};}
 async function locked(root,name,work){
  const path=join(root,name+'.lock');
  try{await mkdir(path,{mode:0o700});}catch(e){if(e.code!=='EEXIST')throw e;let pid;try{pid=JSON.parse(await readFile(join(path,'owner.json'),'utf8')).pid;}catch{throw Error('Unfinished local lock. Inspect before recovery.');}try{process.kill(pid,0);throw Error('Another local process is active.');}catch(error){if(error.code!=='ESRCH')throw error;}await unlink(join(path,'owner.json'));await rmdir(path);await mkdir(path,{mode:0o700});}
@@ -58,8 +67,8 @@ async function locked(root,name,work){
 export async function enroll(file){
  const input=validate(JSON.parse(await readFile(file,'utf8'))),root=await storage(input);
  return locked(root,'enrollment',async()=>{
-  let config;try{config=await readPrivate(join(root,'identity.json'));}catch(error){if(error.code!=='ENOENT')throw error;const keys=generateKeyPairSync('ed25519');config={origin:input.origin,agentId:input.agentId,token:input.token,privateKey:keys.privateKey.export({format:'pem',type:'pkcs8'}),publicKey:keys.publicKey.export({format:'pem',type:'spki'})};await atomic(join(root,'identity.json'),config);}
-  const candidate={...config,token:input.token,session:undefined};await request(candidate,'POST','enrollments/claim',{public_key:candidate.publicKey});
+  let config;try{config=await readPrivate(join(root,'identity.json'));}catch(error){if(error.code!=='ENOENT')throw error;const keys=generateKeyPairSync('ed25519');config={origin:input.origin,agentId:input.agentId,token:input.token,device:await deviceBinding(input.origin,randomUUID()),privateKey:keys.privateKey.export({format:'pem',type:'pkcs8'}),publicKey:keys.publicKey.export({format:'pem',type:'spki'})};await atomic(join(root,'identity.json'),config);}
+  const candidate={...config,device:await deviceBinding(input.origin,config.device?.installation??randomUUID()),token:input.token,session:undefined};await request(candidate,'POST','enrollments/claim',{public_key:candidate.publicKey});
   await atomic(join(root,'identity.json'),candidate);return {registered:true,agent_id:input.agentId};
  });
 }
@@ -79,11 +88,62 @@ async function encryptionSetup(file){
   return {registered:true,fingerprint:result.fingerprint};
  });
 }
-async function connect(file){const {root,config}=await load(file);return locked(root,'connection',async()=>{const result=await request(config,'POST','sessions',{});config.session=result.session_id;await atomic(join(root,'identity.json'),config);const identity=await request(config,'GET','bootstrap');let encryption;try{encryption=await encryptionSetup(file);}catch(error){encryption={registered:false,message:error.status?error.message:'File encryption setup incomplete. Install age and age-keygen, then rerun encryption-setup.'};}return {connected:true,identity:identity.identity,encryption};});}
-async function listen(file){const {root,config}=await load(file);if(!config.session)throw Error('Run connect first.');
+async function connect(file){const {root,config}=await load(file);return locked(root,'connection',async()=>{const result=await request(config,'POST','sessions',config.device?await request(config,'POST','sessions/challenge',{}).then(({challenge})=>({challenge})):{} );config.session=result.session_id;await atomic(join(root,'identity.json'),config);const identity=await request(config,'GET','bootstrap');let encryption;try{encryption=await encryptionSetup(file);}catch(error){encryption={registered:false,message:error.status?error.message:'File encryption setup incomplete. Install age and age-keygen, then rerun encryption-setup.'};}return {connected:true,identity:identity.identity,encryption};});}
+export function connectionModes(capabilities,requested='auto',hasWebSocket=typeof WebSocket==='function'){
+ const supported=capabilities?.message_transports??['long_poll'];
+ if(requested!=='auto')return [requested];
+ const modes=[];
+ if(hasWebSocket&&supported.includes('websocket'))modes.push('websocket');
+ if(supported.includes('sse'))modes.push('sse');
+ modes.push('poll');return modes;
+}
+async function* receiveSocket(config){
+ if(typeof WebSocket!=='function')throw Error('Native WebSocket unavailable; choose auto or poll.');
+ const url=new URL('/api/v1/socket',config.origin);url.protocol=url.protocol==='https:'?'wss:':'ws:';
+ const ws=new WebSocket(url);const queue=[];let done=false,failure,wake;
+ const notify=()=>{wake?.();wake=undefined;};
+ const timer=setTimeout(()=>{failure=Error('WebSocket renewal timeout');done=true;ws.close();notify();},30000);
+ ws.addEventListener('open',()=>ws.send(JSON.stringify({type:'authenticate',headers:signedHeaders(config,'GET','/api/v1/events')})));
+ ws.addEventListener('message',event=>{try{if(typeof event.data!=='string'||event.data.length>8388608)throw Error('Invalid WebSocket event');const data=JSON.parse(event.data);if(data.type==='error'){failure=Error('Bridge WebSocket rejected');failure.status=data.status;}if(data.type==='messages'){if(queue.length>=2)throw Error('WebSocket backlog exceeded');queue.push(data);}notify();}catch(error){failure=error;done=true;ws.close();notify();}});
+ ws.addEventListener('error',()=>{failure=Error('WebSocket connection failed');done=true;notify();});
+ ws.addEventListener('close',event=>{if(!failure&&event.code!==1000)failure=Error('WebSocket interrupted');done=true;notify();});
+ try{while(true){if(queue.length){yield queue.shift();continue;}if(failure)throw failure;if(done)return;await new Promise(resolve=>{wake=resolve;});}}finally{clearTimeout(timer);ws.close();}
+}
+async function* receive(config,mode){
+ if(mode==='websocket'){yield* receiveSocket(config);return;}
+ if(mode==='poll'){yield await request(config,'GET','inbox?wait_seconds=20&limit=100');return;}
+ const target='/api/v1/events';
+ const response=await fetch(config.origin+target,{headers:signedHeaders(config,'GET',target),redirect:'error',signal:AbortSignal.timeout(30000)});
+ if(mode==='auto'&&[404,405,406,501].includes(response.status)){yield await request(config,'GET','inbox?wait_seconds=20&limit=100');return;}
+ if(!response.ok){const error=Error('Bridge listener request failed.');error.status=response.status;throw error;}
+ if(!response.headers.get('content-type')?.includes('text/event-stream'))throw Error('Expected bridge event stream.');
+ const reader=response.body.getReader(),decoder=new TextDecoder();let buffer='';
+ try{while(true){const part=await reader.read();if(part.done)break;buffer+=decoder.decode(part.value,{stream:true});if(buffer.length>8388608)throw Error('Bridge event exceeds limit.');let end;while((end=buffer.indexOf('\n\n'))>=0){const event=buffer.slice(0,end);buffer=buffer.slice(end+2);if(event.startsWith('event: messages\n')){const data=event.split('\n').find(line=>line.startsWith('data: '));if(data)yield JSON.parse(data.slice(6));}}}}finally{await reader.cancel().catch(()=>{});}
+}
+async function listen(file,mode='auto'){
+ if(!['auto','websocket','sse','poll'].includes(mode))throw Error('Listener mode must be auto, websocket, sse or poll.');
+ const {root,config}=await load(file);if(!config.session)throw Error('Run connect first.');
  return locked(root,'listener',async()=>{
-  const inbox=join(root,'inbox');await privateDirectory(inbox);let stopped=false;const stop=()=>{stopped=true;};process.once('SIGINT',stop);process.once('SIGTERM',stop);let delay=1000;
-  try{while(!stopped){try{const batch=await request(config,'GET','inbox?wait_seconds=20&limit=100');for(const message of batch.messages){if(!/^[0-9a-f-]{36}$/.test(message.id))throw Error('Invalid message ID.');const path=join(inbox,message.id+'.json');try{const file=await open(path,'wx',0o600);try{await file.writeFile(JSON.stringify(message));await file.sync();}finally{await file.close();}process.stdout.write('Bridge message stored: '+message.id+'\n');}catch(error){if(error.code!=='EEXIST')throw error;}}delay=1000;if(batch.messages.length)await sleep(10000);}catch(error){if([401,403,409,410].includes(error.status))throw error;await sleep(delay);delay=Math.min(30000,delay*2);}}}finally{process.removeListener('SIGINT',stop);process.removeListener('SIGTERM',stop);}
+  const bootstrap=await request(config,'GET','bootstrap');
+  const modes=connectionModes(bootstrap.capabilities,mode);let modeIndex=0,failures=0;
+  process.stdout.write('Bridge listener mode: '+modes[modeIndex]+'\n');
+  const inbox=join(root,'inbox');await privateDirectory(inbox);
+  let stopped=false;const stop=()=>{stopped=true;};process.once('SIGINT',stop);process.once('SIGTERM',stop);let delay=1000;
+  try{while(!stopped){try{
+   for await(const batch of receive(config,modes[modeIndex])){
+    if(stopped)break;
+    for(const message of batch.messages){
+     if(!/^[0-9a-f-]{36}$/.test(message.id))throw Error('Invalid message ID.');
+     const path=join(inbox,message.id+'.json');
+     try{await lstat(path);}catch(error){if(error.code!=='ENOENT')throw error;await atomic(path,message);process.stdout.write('Bridge message stored: '+message.id+'\n');}
+    }
+   }
+   delay=1000;failures=0;if(!stopped)await sleep(1000);
+  }catch(error){
+   if([401,403,409,410].includes(error.status))throw error;
+   if(++failures>=2&&modeIndex<modes.length-1){modeIndex++;failures=0;process.stdout.write('Bridge listener fallback: '+modes[modeIndex]+'\n');}
+   if(!stopped)await sleep(delay+Math.floor(Math.random()*500));delay=Math.min(30000,delay*2);
+  }}}finally{process.removeListener('SIGINT',stop);process.removeListener('SIGTERM',stop);}
   if(stopped){await request(config,'POST','sessions/current/close',{});delete config.session;await atomic(join(root,'identity.json'),config);}
   return {stopped:true};
  });
@@ -144,7 +204,7 @@ async function download(file,id,destination){
 }
 export async function main(args){const [command,file,...rest]=args;if(!file)throw Error('Usage: bridge-client.mjs enroll|connect|listen|inbox|request|upload|download <config-file> ...');
  if(command==='encryption-setup')return encryptionSetup(file);
- if(command==='enroll')return enroll(file);if(command==='connect')return connect(file);if(command==='listen')return listen(file);
+ if(command==='enroll')return enroll(file);if(command==='connect')return connect(file);if(command==='listen')return listen(file,rest[0]);
  if(command==='upload')return upload(file,...rest);if(command==='download')return download(file,...rest);
  const {root,config}=await load(file);
  if(command==='inbox'){const dir=join(root,'inbox');await privateDirectory(dir);return Promise.all((await readdir(dir)).filter(n=>/^[0-9a-f-]{36}\.json$/.test(n)).map(n=>readPrivate(join(dir,n))));}

@@ -14,7 +14,8 @@ import { transferOperation } from './transfers';
 import { agentGuides } from './agent-guides';
 import { errorResponse, fail, inaccessible, json, plainMessage, readBody, taskAction, taskCreate, uuid } from './protocol';
 
-const activePolls = new Set<string>();
+const processState=globalThis as typeof globalThis & {__bridgeInboxWaits?:Set<string>};
+const activePolls=processState.__bridgeInboxWaits??=new Set<string>();
 const integerQuery = (url: URL, key: string, fallback: number, max: number) => z.coerce.number().int().min(key==='limit'?1:0).max(max).parse(url.searchParams.get(key) ?? fallback);
 export async function handleAgentRequest(request: Request, database: Pool): Promise<Response> {
   try {
@@ -31,6 +32,7 @@ export async function handleAgentRequest(request: Request, database: Pool): Prom
       body=await readBody(new Request(request.url,{method:'POST',headers:request.headers,body:raw}));
     }
     access.proof=proofFrom(request,raw);access.enrollment=request.method==='POST'&&path.join('/')==='enrollments/claim';
+    if (request.method === 'GET' && path.join('/') === 'events') return await streamInbox(request,database,access);
     if (request.method === 'GET' && path.join('/') === 'inbox') return await pollInbox(request,database,access,url);
     const method = request.method;
 
@@ -43,7 +45,7 @@ export async function handleAgentRequest(request: Request, database: Pool): Prom
           return {version:'1.2.0',topic:path[1],instructions:agentGuides[path[1] as keyof typeof agentGuides]};
         }
         switch(path.join('/')) {
-          case 'bootstrap': return { protocol:{major:1,minor:1}, identity:{id:who.id,name:who.name,role:who.role,project_id:who.project_id,environment_id:who.environment_id},
+          case 'bootstrap': return { protocol:{major:1,minor:2}, capabilities:{message_transports:[...(process.env.BRIDGE_WEBSOCKET_ENABLED==='1'?['websocket']:[]),'sse','long_poll','short_poll'],websocket_path:process.env.BRIDGE_WEBSOCKET_ENABLED==='1'?'/api/v1/socket':null,events_path:'/api/v1/events',stream_lifetime_seconds:20,heartbeat_seconds:1,receipt_semantics:'retrieved_is_not_accepted'}, identity:{id:who.id,name:who.name,role:who.role,project_id:who.project_id,environment_id:who.environment_id},
             limits:{wait_seconds:20,page_size:100,message_bytes:65536,idle_seconds:null,empty_polls:null},
             session_policy:{idle_timeout:false,rediscover_after_empty_poll:true,close_on:'operator_stop_or_harness_shutdown'},server_time:new Date().toISOString() };
           case 'peers': {
@@ -89,9 +91,19 @@ export async function handleAgentRequest(request: Request, database: Pool): Prom
         await client.query('UPDATE bridge_agents SET host_metrics=$2::jsonb,host_metrics_at=clock_timestamp() WHERE id=$1',[who.id,JSON.stringify(input)]);
         return {recorded:true};
       }
+      if(path.join('/')==='sessions/challenge'){
+        const challenge=randomUUID();
+        await client.query("UPDATE bridge_credentials SET connection_challenge=$2,challenge_expires_at=now()+interval '1 minute' WHERE id=$1",[who.credential_id,digest(challenge)]);
+        return {challenge,expires_in_seconds:60};
+      }
       if (path.join('/') === 'sessions') {
-        const input=z.strictObject({takeover_token:z.string().regex(/^[A-Za-z0-9_-]{43}$/).optional()}).parse(body);
+        const input=z.strictObject({challenge:z.string().uuid().optional(),takeover_token:z.string().regex(/^[A-Za-z0-9_-]{43}$/).optional()}).parse(body);
         if (access.session && access.session!==who.session_id) fail(409,'SESSION_CONFLICT','This session was replaced. Stop this adapter.');
+        const binding=(await client.query('SELECT device_binding,connection_challenge,challenge_expires_at FROM bridge_credentials WHERE id=$1',[who.credential_id])).rows[0];
+        if(binding.device_binding){
+          if(!input.challenge||digest(input.challenge)!==binding.connection_challenge||!binding.challenge_expires_at||new Date(binding.challenge_expires_at).getTime()<=Date.now())fail(401,'CONNECTION_CHALLENGE_REQUIRED','Request and sign a fresh connection challenge.');
+          await client.query('UPDATE bridge_credentials SET connection_challenge=NULL,challenge_expires_at=NULL WHERE id=$1',[who.credential_id]);
+        }
         const required=await client.query('SELECT takeover_digest FROM bridge_agents WHERE id=$1',[who.id]);
         if(input.takeover_token && (!required.rows[0].takeover_digest||digest(input.takeover_token)!==required.rows[0].takeover_digest))fail(409,'TAKEOVER_GRANT_INVALID','This takeover grant has already been consumed or replaced.');
         if(access.proof&&who.session_id){
@@ -146,7 +158,7 @@ export async function handleAgentRequest(request: Request, database: Pool): Prom
         return idempotent(client,who.id,`tasks/${id}/${path[2]}`,key,input,()=>taskMutation(client,who,id,path[2],input),response=>validateTaskReplay(client,who,id,path[2],response));
       }
       inaccessible();
-    }, !(path.join('/') === 'bootstrap' || path.join('/') === 'sessions' || access.enrollment));
+    }, !(path.join('/') === 'bootstrap' || path.join('/') === 'sessions' || path.join('/') === 'sessions/challenge' || access.enrollment));
     if(path[0]==='packages'&&path.length===3&&['receipt','cancel'].includes(path[2])){try{await purgePackages(database,path[1]);}catch{/* Access is closed; scheduled retention retries file removal. */}}
     return json(result);
   } catch(error) {return errorResponse(error);}
@@ -172,4 +184,34 @@ async function pollInbox(request: Request, database: Pool, access: AgentAccess, 
       await new Promise(resolve=>setTimeout(resolve,Math.min(500,deadline-Date.now())));
     }
   } finally {activePolls.delete(pollKey);}
+}
+
+// Short-lived SSE connections reauthenticate on reconnect and fence every batch.
+async function streamInbox(request:Request,database:Pool,access:AgentAccess):Promise<Response> {
+  const identity=await agentTransaction(database,access,async(_client,who)=>who);
+  const key=`${identity.id}:${identity.generation}`;
+  if(activePolls.has(key))fail(429,'POLL_ALREADY_ACTIVE','Only one inbox listener is allowed per session.');
+  if(activePolls.size>=100)fail(503,'POLL_CAPACITY','Inbox wait capacity reached. Retry shortly.');
+  activePolls.add(key);
+  let cancelled=false;
+  const encoder=new TextEncoder();
+  const stream=new ReadableStream<Uint8Array>({
+    async start(controller){
+      const end=Date.now()+20000;
+      const sent=new Set<string>();
+      try {
+        controller.enqueue(encoder.encode(': connected\n\n'));
+        while(!cancelled&&!request.signal.aborted&&Date.now()<end){
+          const batch=await agentTransaction(database,access,async(client,who)=>inbox(client,who,100));
+          const fresh=batch.messages.filter(message=>!sent.has(message.id));
+          if(fresh.length){fresh.forEach(message=>sent.add(message.id));controller.enqueue(encoder.encode('event: messages\ndata: '+JSON.stringify({messages:fresh})+'\n\n'));}
+          else controller.enqueue(encoder.encode(': heartbeat\n\n'));
+          await new Promise(resolve=>setTimeout(resolve,1000));
+        }
+      }catch{if(!cancelled)controller.enqueue(encoder.encode('event: reconnect\ndata: {}\n\n'));}
+      finally{activePolls.delete(key);if(!cancelled)controller.close();}
+    },
+    cancel(){cancelled=true;}
+  });
+  return new Response(stream,{headers:{'Content-Type':'text/event-stream','Cache-Control':'no-cache, no-transform','X-Accel-Buffering':'no'}});
 }

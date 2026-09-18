@@ -202,6 +202,9 @@ async function streamInbox(request:Request,database:Pool,access:AgentAccess):Pro
       try {
         controller.enqueue(encoder.encode(': connected\n\n'));
         while(!cancelled&&!request.signal.aborted&&Date.now()<end){
+          // Stop reading the inbox when the consumer stops draining events.
+          // Unacknowledged messages remain available on the next connection.
+          if((controller.desiredSize??0)<=0)break;
           const batch=await agentTransaction(database,access,async(client,who)=>inbox(client,who,100));
           const fresh=batch.messages.filter(message=>!sent.has(message.id));
           if(fresh.length){fresh.forEach(message=>sent.add(message.id));controller.enqueue(encoder.encode('event: messages\ndata: '+JSON.stringify({messages:fresh})+'\n\n'));}
@@ -212,6 +215,6 @@ async function streamInbox(request:Request,database:Pool,access:AgentAccess):Pro
       finally{activePolls.delete(key);if(!cancelled)controller.close();}
     },
     cancel(){cancelled=true;}
-  });
+  },{highWaterMark:2});
   return new Response(stream,{headers:{'Content-Type':'text/event-stream','Cache-Control':'no-cache, no-transform','X-Accel-Buffering':'no'}});
 }

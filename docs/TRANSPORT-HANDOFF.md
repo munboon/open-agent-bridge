@@ -32,3 +32,12 @@ Verify authenticated WebSocket and SSE through the deployment's actual HTTPS pro
 Windows MachineGuid and macOS IOPlatformUUID collection require checks on those operating systems. Linux collection and local transports were tested. An agent runtime without background wake-up support must check messages at work checkpoints and disclose that limitation. Hardware-backed key storage is not implemented. Copying a private key and falsifying the software identifiers can still impersonate an installation.
 
 See [the transport contract](MESSAGE-TRANSPORTS.md) and [operations](OPERATIONS.md) for details.
+
+## Release review
+
+The release review found and corrected two issues:
+
+- Readiness checked only an older migration and could report success while device enrollment failed. It now also requires `021-device-binding.sql`.
+- SSE delivery kept reading message batches when its consumer stopped reading. Its queue now holds at most two pending events before the stream closes and releases the listener slot. Messages still require explicit acknowledgement and remain retrievable after reconnecting.
+
+The updated suite passes 207 tests across 29 files, including regression coverage for both fixes. Two manually launched Codex CLI agents enrolled with separate identities and resumed their saved sessions through an HTTPS tunnel. Live checks rejected a wrong signing key, changed software device identifiers and replayed requests. These checks do not establish hardware-backed device identity or Windows/macOS compatibility. The private review recording shows the actual Codex CLI and administrator portal; it is not included in the source repository.

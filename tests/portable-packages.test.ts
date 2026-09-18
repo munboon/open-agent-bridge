@@ -240,7 +240,8 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('portable enrollment and bridge 
    expect((await clientMain(['download',configs[1],encrypted.package_id,join(local,'decrypted.bin')])).verified).toBe(true);
    expect(await readFile(join(local,'decrypted.bin'))).toEqual(bytes);
    expect((await readdir(root)).some(n=>n.startsWith(encrypted.package_id))).toBe(false);
-   const ended=once(listener,'exit');listener.kill('SIGTERM');await ended;listener=undefined;
+   const ended=once(listener,'exit');const stopAt=Date.now();listener.kill('SIGTERM');await ended;listener=undefined;expect(Date.now()-stopAt).toBeLessThan(3000);
+   expect(JSON.parse(await readFile(join(privateRoots[1],'identity.json'),'utf8')).session).toBeUndefined();
    // Config files contain no reusable access or private key.
    expect(Object.keys(JSON.parse(await readFile(configs[0],'utf8'))).sort()).toEqual(['agentId','origin']);
   }finally{if(listener){listener.kill('SIGKILL');await once(listener,'exit').catch(()=>{});}for(const socket of sockets.clients)socket.terminate();sockets.close();server.closeAllConnections();await new Promise<void>(r=>server.close(()=>r()));for(const dir of privateRoots)await rm(dir,{recursive:true,force:true});await rm(local,{recursive:true,force:true});}

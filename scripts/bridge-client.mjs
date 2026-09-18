@@ -10,7 +10,7 @@ import {execFile,execFileSync} from 'node:child_process';
 import {promisify} from 'node:util';
 import {pathToFileURL} from 'node:url';
 const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
-const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const sleep=(ms,signal)=>new Promise(resolve=>{let timer;const done=()=>{clearTimeout(timer);signal?.removeEventListener('abort',done);resolve();};timer=setTimeout(done,ms);signal?.addEventListener('abort',done,{once:true});if(signal?.aborted)done();});
 export function signedHeaders(config,method,target,body='',key=''){
  const timestamp=String(Date.now()),nonce=randomBytes(24).toString('base64url');
  const device=config.device?JSON.stringify(config.device):'';
@@ -45,10 +45,10 @@ export async function storage(config){
 }
 async function atomic(path,value){const temp=path+'.'+randomUUID()+'.tmp';const file=await open(temp,'wx',0o600);try{await file.writeFile(JSON.stringify(value));await file.sync();}finally{await file.close();}await rename(temp,path);}
 async function readPrivate(path){const file=await open(path,'r');try{const stat=await lstat(path);if(stat.isSymbolicLink()||!stat.isFile()||(process.platform!=='win32'&&(stat.uid!==process.getuid()||(stat.mode&0o077)!==0)))throw Error('Private file permissions are unsafe.');return JSON.parse(await file.readFile('utf8'));}finally{await file.close();}}
-export async function request(config,method,path,body,key=''){
+export async function request(config,method,path,body,key='',signal){
  if(!/^[a-z][a-z0-9/-]*(?:\?[A-Za-z0-9_=&%-]+)?$/.test(path))throw Error('Use a relative API path.');
  const target='/api/v1/'+path,payload=body===undefined?'':JSON.stringify(body);
- const response=await fetch(config.origin+target,{method,headers:signedHeaders(config,method,target,payload,key),body:method==='POST'?payload:undefined,redirect:'error',signal:AbortSignal.timeout(30000)});
+ const response=await fetch(config.origin+target,{method,headers:signedHeaders(config,method,target,payload,key),body:method==='POST'?payload:undefined,redirect:'error',signal:signal?AbortSignal.any([signal,AbortSignal.timeout(30000)]):AbortSignal.timeout(30000)});
  const result=await response.json();if(!response.ok){const error=Error(`${result.code??'REQUEST_FAILED'}: ${result.message??'Bridge request failed.'}`);error.status=response.status;throw error;}return result;
 }
 export async function deviceBinding(origin,installation){
@@ -98,25 +98,26 @@ export function connectionModes(capabilities,requested='auto',hasWebSocket=typeo
  if(supported.includes('sse'))modes.push('sse');
  modes.push('poll');if(supported.includes('short_poll'))modes.push('short');return modes;
 }
-async function* receiveSocket(config){
+async function* receiveSocket(config,signal){
  if(typeof WebSocket!=='function')throw Error('Native WebSocket unavailable; choose auto or poll.');
  const url=new URL('/api/v1/socket',config.origin);url.protocol=url.protocol==='https:'?'wss:':'ws:';
  const ws=new WebSocket(url);const queue=[];let done=false,failure,wake;
  const notify=()=>{wake?.();wake=undefined;};
+ const abort=()=>{done=true;ws.close();notify();};signal?.addEventListener('abort',abort,{once:true});if(signal?.aborted)abort();
  const timer=setTimeout(()=>{failure=Error('WebSocket renewal timeout');done=true;ws.close();notify();},30000);
  ws.addEventListener('open',()=>ws.send(JSON.stringify({type:'authenticate',headers:signedHeaders(config,'GET','/api/v1/events')})));
  ws.addEventListener('message',event=>{try{if(typeof event.data!=='string'||event.data.length>8388608)throw Error('Invalid WebSocket event');const data=JSON.parse(event.data);if(data.type==='error'){failure=Error('Bridge WebSocket rejected');failure.status=data.status;}if(data.type==='messages'){if(queue.length>=2)throw Error('WebSocket backlog exceeded');queue.push(data);}notify();}catch(error){failure=error;done=true;ws.close();notify();}});
  ws.addEventListener('error',()=>{failure=Error('WebSocket connection failed');done=true;notify();});
  ws.addEventListener('close',event=>{if(!failure&&event.code!==1000)failure=Error('WebSocket interrupted');done=true;notify();});
- try{while(true){if(queue.length){yield queue.shift();continue;}if(failure)throw failure;if(done)return;await new Promise(resolve=>{wake=resolve;});}}finally{clearTimeout(timer);ws.close();}
+ try{while(!signal?.aborted){if(queue.length){yield queue.shift();continue;}if(failure)throw failure;if(done)return;await new Promise(resolve=>{wake=resolve;});}}finally{signal?.removeEventListener('abort',abort);clearTimeout(timer);ws.close();}
 }
-async function* receive(config,mode){
- if(mode==='websocket'){yield* receiveSocket(config);return;}
- if(mode==='short'){yield await request(config,'GET','inbox?wait_seconds=0&limit=100');return;}
- if(mode==='poll'){yield await request(config,'GET','inbox?wait_seconds=20&limit=100');return;}
+async function* receive(config,mode,signal){
+ if(mode==='websocket'){yield* receiveSocket(config,signal);return;}
+ if(mode==='short'){yield await request(config,'GET','inbox?wait_seconds=0&limit=100',undefined,'',signal);return;}
+ if(mode==='poll'){yield await request(config,'GET','inbox?wait_seconds=20&limit=100',undefined,'',signal);return;}
  const target='/api/v1/events';
- const response=await fetch(config.origin+target,{headers:signedHeaders(config,'GET',target),redirect:'error',signal:AbortSignal.timeout(30000)});
- if(mode==='auto'&&[404,405,406,501].includes(response.status)){yield await request(config,'GET','inbox?wait_seconds=20&limit=100');return;}
+ const response=await fetch(config.origin+target,{headers:signedHeaders(config,'GET',target),redirect:'error',signal:signal?AbortSignal.any([signal,AbortSignal.timeout(30000)]):AbortSignal.timeout(30000)});
+ if(mode==='auto'&&[404,405,406,501].includes(response.status)){yield await request(config,'GET','inbox?wait_seconds=20&limit=100',undefined,'',signal);return;}
  if(!response.ok){const error=Error('Bridge listener request failed.');error.status=response.status;throw error;}
  if(!response.headers.get('content-type')?.includes('text/event-stream'))throw Error('Expected bridge event stream.');
  const reader=response.body.getReader(),decoder=new TextDecoder();let buffer='';
@@ -139,10 +140,10 @@ async function listen(file,mode='auto',interval=5,thread){
   process.stdout.write('Bridge listener mode: '+modes[modeIndex]+'\n');
   const inbox=join(root,'inbox');await privateDirectory(inbox);
   const notifications=thread?join(root,'notifications',thread):null;if(notifications)await privateDirectory(notifications);
-  let stopped=false;const stop=()=>{stopped=true;};process.once('SIGINT',stop);process.once('SIGTERM',stop);let delay=1000;
+  const controller=new AbortController();let stopped=false;const stop=()=>{stopped=true;controller.abort();};process.once('SIGINT',stop);process.once('SIGTERM',stop);let delay=1000;
   try{while(!stopped){try{
    if(modes[modeIndex]==='short'&&bootstrap.capabilities?.contact_schedule&&!reportedShort){await request(config,'POST','connection-mode',{mode:'short_poll',interval_seconds:interval});reportedShort=true;}
-   for await(const batch of receive(config,modes[modeIndex])){
+   for await(const batch of receive(config,modes[modeIndex],controller.signal)){
     if(stopped)break;
     const pending=[];
     for(const message of batch.messages){
@@ -153,11 +154,12 @@ async function listen(file,mode='auto',interval=5,thread){
     }
     if(pending.length){try{await notifyCodex(thread,file,pending);for(const id of pending)await atomic(join(notifications,id+'.json'),{queued_at:new Date().toISOString()});process.stdout.write('Bridge notification queued for Codex.\n');}catch{process.stderr.write('Codex notification failed; messages remain in the inbox and notification will retry.\n');}}
    }
-   delay=1000;failures=0;if(!stopped)await sleep(modes[modeIndex]==='short'?interval*1000:1000);
+   delay=1000;failures=0;if(!stopped)await sleep(modes[modeIndex]==='short'?interval*1000:1000,controller.signal);
   }catch(error){
+   if(stopped)break;
    if([401,403,409,410].includes(error.status))throw error;
    if(++failures>=2&&modeIndex<modes.length-1){modeIndex++;failures=0;process.stdout.write('Bridge listener fallback: '+modes[modeIndex]+'\n');}
-   if(!stopped)await sleep(delay+Math.floor(Math.random()*500));delay=Math.min(30000,delay*2);
+   if(!stopped)await sleep(delay+Math.floor(Math.random()*500),controller.signal);delay=Math.min(30000,delay*2);
   }}}finally{process.removeListener('SIGINT',stop);process.removeListener('SIGTERM',stop);}
   if(stopped){await request(config,'POST','sessions/current/close',{});delete config.session;await atomic(join(root,'identity.json'),config);}
   return {stopped:true};

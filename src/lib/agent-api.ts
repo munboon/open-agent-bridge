@@ -1,3 +1,4 @@
+import {beginContact,finishContact,recordShortPoll,reportContact} from './agent-contact';
 import {promptTemplateNames,templateDescriptions,type PromptTemplate} from './agent-instructions';
 import {purgePackages} from '../../scripts/package-retention';
 import {packageOperation} from './hosted-packages';
@@ -17,7 +18,7 @@ import { errorResponse, fail, inaccessible, json, plainMessage, readBody, taskAc
 const processState=globalThis as typeof globalThis & {__bridgeInboxWaits?:Set<string>};
 const activePolls=processState.__bridgeInboxWaits??=new Set<string>();
 const integerQuery = (url: URL, key: string, fallback: number, max: number) => z.coerce.number().int().min(key==='limit'?1:0).max(max).parse(url.searchParams.get(key) ?? fallback);
-export async function handleAgentRequest(request: Request, database: Pool): Promise<Response> {
+export async function handleAgentRequest(request: Request, database: Pool, transport?:'websocket'): Promise<Response> {
   try {
     const url = new URL(request.url);
     const path = url.pathname.replace(/^\/api\/v1\/?/,'').split('/').filter(Boolean);
@@ -32,7 +33,7 @@ export async function handleAgentRequest(request: Request, database: Pool): Prom
       body=await readBody(new Request(request.url,{method:'POST',headers:request.headers,body:raw}));
     }
     access.proof=proofFrom(request,raw);access.enrollment=request.method==='POST'&&path.join('/')==='enrollments/claim';
-    if (request.method === 'GET' && path.join('/') === 'events') return await streamInbox(request,database,access);
+    if (request.method === 'GET' && path.join('/') === 'events') return await streamInbox(request,database,access,transport??'sse');
     if (request.method === 'GET' && path.join('/') === 'inbox') return await pollInbox(request,database,access,url);
     const method = request.method;
 
@@ -45,7 +46,7 @@ export async function handleAgentRequest(request: Request, database: Pool): Prom
           return {version:'1.2.0',topic:path[1],instructions:agentGuides[path[1] as keyof typeof agentGuides]};
         }
         switch(path.join('/')) {
-          case 'bootstrap': return { protocol:{major:1,minor:2}, capabilities:{message_transports:[...(process.env.BRIDGE_WEBSOCKET_ENABLED==='1'?['websocket']:[]),'sse','long_poll','short_poll'],websocket_path:process.env.BRIDGE_WEBSOCKET_ENABLED==='1'?'/api/v1/socket':null,events_path:'/api/v1/events',stream_lifetime_seconds:20,heartbeat_seconds:1,receipt_semantics:'retrieved_is_not_accepted'}, identity:{id:who.id,name:who.name,role:who.role,project_id:who.project_id,environment_id:who.environment_id},
+          case 'bootstrap': return { protocol:{major:1,minor:2}, capabilities:{contact_schedule:true,short_poll_interval_seconds:5,message_transports:[...(process.env.BRIDGE_WEBSOCKET_ENABLED==='1'?['websocket']:[]),'sse','long_poll','short_poll'],websocket_path:process.env.BRIDGE_WEBSOCKET_ENABLED==='1'?'/api/v1/socket':null,events_path:'/api/v1/events',stream_lifetime_seconds:20,heartbeat_seconds:1,receipt_semantics:'retrieved_is_not_accepted'}, identity:{id:who.id,name:who.name,role:who.role,project_id:who.project_id,environment_id:who.environment_id},
             limits:{wait_seconds:20,page_size:100,message_bytes:65536,idle_seconds:null,empty_polls:null},
             session_policy:{idle_timeout:false,rediscover_after_empty_poll:true,close_on:'operator_stop_or_harness_shutdown'},server_time:new Date().toISOString() };
           case 'peers': {
@@ -96,6 +97,7 @@ export async function handleAgentRequest(request: Request, database: Pool): Prom
         await client.query("UPDATE bridge_credentials SET connection_challenge=$2,challenge_expires_at=now()+interval '1 minute' WHERE id=$1",[who.credential_id,digest(challenge)]);
         return {challenge,expires_in_seconds:60};
       }
+      if(path.join('/')==='connection-mode')return reportContact(client,who,body);
       if (path.join('/') === 'sessions') {
         const input=z.strictObject({challenge:z.string().uuid().optional(),takeover_token:z.string().regex(/^[A-Za-z0-9_-]{43}$/).optional()}).parse(body);
         if (access.session && access.session!==who.session_id) fail(409,'SESSION_CONFLICT','This session was replaced. Stop this adapter.');
@@ -112,7 +114,7 @@ export async function handleAgentRequest(request: Request, database: Pool): Prom
         }
         const session = randomUUID();
         await client.query("UPDATE bridge_tasks SET state='needs_reconciliation',updated_at=now() WHERE assignee_id=$1 AND state IN ('claimed','cancel_requested')",[who.id]);
-        await client.query('UPDATE bridge_agents SET host_metrics=NULL,host_metrics_at=NULL,session_id=$2,generation=generation+1,takeover_digest=NULL WHERE id=$1',[who.id,session]);
+        await client.query('UPDATE bridge_agents SET host_metrics=NULL,host_metrics_at=NULL,contact_state=NULL,session_id=$2,generation=generation+1,takeover_digest=NULL WHERE id=$1',[who.id,session]);
         if(who.session_id)await audit(client,who,'session.replaced',who.session_id);
         // Enabled project identities pair across and within environments.
         // Explicit owner blocks survive sign-ins.
@@ -129,7 +131,7 @@ export async function handleAgentRequest(request: Request, database: Pool): Prom
       }
       if (path.join('/') === 'sessions/current/close') {
         z.strictObject({}).parse(body);
-        await client.query('UPDATE bridge_agents SET session_id=NULL WHERE id=$1',[who.id]);
+        await client.query("UPDATE bridge_agents SET session_id=NULL,contact_state=contact_state || jsonb_build_object('next_at',NULL,'listening_until',NULL) WHERE id=$1",[who.id]);
         await client.query("UPDATE bridge_tasks SET state='needs_reconciliation',updated_at=now() WHERE assignee_id=$1 AND state IN ('claimed','cancel_requested')",[who.id]);
         await audit(client,who,'session.close'); return {closed:true};
       }
@@ -171,23 +173,26 @@ async function pollInbox(request: Request, database: Pool, access: AgentAccess, 
   if (activePolls.size>=100) fail(503,'POLL_CAPACITY','Inbox wait capacity reached. Retry shortly.');
   activePolls.add(pollKey);
   const deadline=Date.now()+wait*1000;
+  let lease:string|null=null;
   try {
+    lease=await agentTransaction(database,access,(client,who)=>beginContact(client,who,wait>0?'long_poll':null,wait));
     while(true) {
       if(request.signal.aborted) fail(499,'REQUEST_CANCELLED','The client disconnected.');
       // Recheck credential, owner, generation and pairings on every response
       // candidate. No message is retained across a wait outside this transaction.
       const response = await agentTransaction(database,access,async (client,who)=> {
         const batch=await inbox(client,who,limit);
+        if(wait===0)await recordShortPoll(client,who);
         return batch.messages.length || Date.now()>=deadline ? json({...batch,server_time:new Date().toISOString()}) : null;
       });
       if(response) return response;
       await new Promise(resolve=>setTimeout(resolve,Math.min(500,deadline-Date.now())));
     }
-  } finally {activePolls.delete(pollKey);}
+  } finally {try{await finishContact(database,identity,lease);}finally{activePolls.delete(pollKey);}}
 }
 
 // Short-lived SSE connections reauthenticate on reconnect and fence every batch.
-async function streamInbox(request:Request,database:Pool,access:AgentAccess):Promise<Response> {
+async function streamInbox(request:Request,database:Pool,access:AgentAccess,mode:'sse'|'websocket'):Promise<Response> {
   const identity=await agentTransaction(database,access,async(_client,who)=>who);
   const key=`${identity.id}:${identity.generation}`;
   if(activePolls.has(key))fail(429,'POLL_ALREADY_ACTIVE','Only one inbox listener is allowed per session.');
@@ -199,7 +204,9 @@ async function streamInbox(request:Request,database:Pool,access:AgentAccess):Pro
     async start(controller){
       const end=Date.now()+20000;
       const sent=new Set<string>();
+      let lease:string|null=null;
       try {
+        lease=await agentTransaction(database,access,(client,who)=>beginContact(client,who,mode,20));
         controller.enqueue(encoder.encode(': connected\n\n'));
         while(!cancelled&&!request.signal.aborted&&Date.now()<end){
           // Stop reading the inbox when the consumer stops draining events.
@@ -212,7 +219,7 @@ async function streamInbox(request:Request,database:Pool,access:AgentAccess):Pro
           await new Promise(resolve=>setTimeout(resolve,1000));
         }
       }catch{if(!cancelled)controller.enqueue(encoder.encode('event: reconnect\ndata: {}\n\n'));}
-      finally{activePolls.delete(key);if(!cancelled)controller.close();}
+      finally{try{await finishContact(database,identity,lease);}finally{activePolls.delete(key);if(!cancelled)controller.close();}}
     },
     cancel(){cancelled=true;}
   },{highWaterMark:2});

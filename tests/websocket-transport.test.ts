@@ -12,6 +12,7 @@ describe('message transport compatibility',()=>{
  it('negotiates existing native capabilities and legacy fallback',()=>{
   expect(connectionModes({message_transports:['websocket','sse','long_poll']},'auto',true)).toEqual(['websocket','sse','poll']);
   expect(connectionModes({message_transports:['websocket','sse']},'auto',false)).toEqual(['sse','poll']);
+  expect(connectionModes({message_transports:['sse','long_poll','short_poll']},'auto',false)).toEqual(['sse','poll','short']);
   expect(connectionModes(undefined,'auto',false)).toEqual(['poll']);
   expect(connectionModes({},'poll',true)).toEqual(['poll']);
  });

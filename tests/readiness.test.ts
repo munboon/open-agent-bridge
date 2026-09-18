@@ -20,8 +20,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('release readiness',()=> {
     const response=await GET();expect(response.status).toBe(503);expect(await response.json()).toEqual({ready:false});
     process.env.BETTER_AUTH_URL='https://bridge.example.test';
   });
-  it('does not report ready before the device-binding migration is applied',async()=> {
-    const name='021-device-binding.sql';
+  it.each(['021-device-binding.sql','022-agent-contact.sql'])('does not report ready without %s',async(name)=> {
     const saved=(await pool.query('DELETE FROM bridge_migrations WHERE name=$1 RETURNING *',[name])).rows[0];
     expect(saved).toBeTruthy();
     try {

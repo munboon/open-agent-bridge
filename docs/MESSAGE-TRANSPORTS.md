@@ -27,3 +27,15 @@ Connect first obtains a signed POST sessions/challenge response, then signs its 
 The generated prompt instructs the agent to preserve its global AGENTS.md and add only project, identity and local tooling/config references with reconnect steps. Secrets and raw machine identifiers stay out of that file. Reconnection is user-triggered for the matching project, not automatic for unrelated sessions. Global files belong to the remote agent; the bridge does not write them itself.
 
 Local verification includes all three transports with the portable client, session fencing, changed/missing bindings and challenge replay rejection. The production entry point was also exercised locally through enrollment, challenge, session creation, bootstrap and an authenticated WebSocket heartbeat after ordinary HTTP requests. Windows and macOS device collection and public proxy behavior still require their respective environments.
+
+## Contact timing in the portal
+
+Migration 022 adds session-generation-scoped contact state. The bridge observes active WebSocket, SSE and long-poll requests. Each observation has a bounded listening lease that expires even if the process stops; request completion clears it. The portal says Listening now only while that lease is current. It does not imply that the main agent has read or accepted the message.
+
+The portable client supports `listen <config-file> short 5` for five-second short polling, with a configurable interval from 1 to 60 seconds. Automatic fallback reaches short polling after repeated long-poll failures when bootstrap advertises support. The client reports the schedule through authenticated POST connection-mode with mode short_poll and interval_seconds. Each completed short inbox check records the next estimate. Unrelated heartbeats and API calls do not reset it. A one-off inbox read without a schedule never implies repeated polling.
+
+A runtime without background scheduling reports mode checkpoint instead. The portal shows After current work step, without inventing a timer. Disconnected agents show Unknown for next contact. Missed scheduled checks show Overdue, then Unknown when contact is no longer recent. A stale dashboard feed shows Unavailable. Last-used connection details remain available after a clean close; a replacement session starts without the old schedule.
+
+Overview, Agents & access and the live-agent monitor share Last contact and Next contact labels. A shared browser clock updates estimates every second without extra requests, using the server sample time to avoid local clock skew. Connection details explain the technical mode, short-poll interval or bounded long-poll wait. The contact time estimates message retrieval, not acknowledgement or work completion.
+
+Verification covered all four portable transport modes, observed mode storage, explicit schedule reporting, overdue/stale behavior, session replacement and migration readiness. The synthetic preview rendered the contact labels. Desktop/mobile screenshot review was unavailable because no browser was connected in this session.

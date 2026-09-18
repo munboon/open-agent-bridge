@@ -41,3 +41,7 @@ The release review found and corrected two issues:
 - SSE delivery kept reading message batches when its consumer stopped reading. Its queue now holds at most two pending events before the stream closes and releases the listener slot. Messages still require explicit acknowledgement and remain retrievable after reconnecting.
 
 The updated suite passes 207 tests across 29 files, including regression coverage for both fixes. Two manually launched Codex CLI agents enrolled with separate identities and resumed their saved sessions through an HTTPS tunnel. Live checks rejected a wrong signing key, changed software device identifiers and replayed requests. These checks do not establish hardware-backed device identity or Windows/macOS compatibility. The private review recording shows the actual Codex CLI and administrator portal; it is not included in the source repository.
+
+## Contact timing follow-up
+
+The Last contact / Next contact implementation and migration 022 are ready on `codex/agent-contact-timing`. See [the contact timing handoff](CONTACT-TIMING-HANDOFF.md) before preparing the next release.

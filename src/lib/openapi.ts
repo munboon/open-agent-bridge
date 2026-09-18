@@ -1,3 +1,4 @@
+import {contactScheduleSchema} from './agent-contact';
 import {promptTemplateSchema,workInstructionsSchema} from './agent-template-schema';
 import {projectSetupSchema} from './project-kit';
 import { hostMetricsSchema } from './host-metrics';
@@ -6,7 +7,7 @@ import { label, messageBody, plainMessage, taskAction, taskCreate, uuid } from '
 import { eventInput, manifestSchema, offerInput, receiptInput, transferInput } from './transfers';
 const schemas:Record<string,z.ZodType>={Confirm:z.strictObject({confirm:z.literal(true)}),HostMetrics:hostMetricsSchema,MessageInput:plainMessage,TaskInput:taskCreate,TaskAction:taskAction,
   Manifest:manifestSchema,TransferInput:transferInput,OfferInput:offerInput,ReceiptInput:receiptInput,TransferEvent:eventInput,
-  SessionInput:z.strictObject({challenge:z.string().uuid().optional(),takeover_token:z.string().optional()}),ConversationInput:z.strictObject({recipient_agent_id:uuid}),
+  ContactSchedule:contactScheduleSchema,SessionInput:z.strictObject({challenge:z.string().uuid().optional(),takeover_token:z.string().optional()}),ConversationInput:z.strictObject({recipient_agent_id:uuid}),
   Acknowledgements:z.strictObject({message_ids:z.array(uuid).min(1).max(100)}),Empty:z.strictObject({}),
   ProjectSetup:projectSetupSchema,ProjectInput:z.strictObject({name:label,client_label:label}),EnvironmentInput:z.strictObject({name:label.max(114),create_agent:z.boolean().optional(),role:z.enum(['development','deployment']).optional(),prompt_template:promptTemplateSchema.optional(),work_instructions:workInstructionsSchema.nullable().optional()}),
   AgentInput:z.strictObject({name:z.string().trim().max(120).optional(),role:z.enum(['development','deployment']).optional(),prompt_template:promptTemplateSchema.optional(),work_instructions:workInstructionsSchema.nullable().optional(),environment_id:uuid}),
@@ -35,7 +36,7 @@ const sequence=z.union([z.number().int().nonnegative(),z.string().regex(/^\d+$/)
 const project=z.object({id:uuid,owner_id:z.string(),name:z.string(),client_label:z.string(),state:z.enum(['active','paused','archived']),created_at:timestamp});
 const environment=z.object({id:uuid,project_id:uuid,name:z.string()});
 const agentCreated=z.object({id:uuid,prompt_template:promptTemplateSchema.optional(),chat_visible:z.boolean().optional(),name:z.string(),role:z.enum(['development','deployment']),environment_id:uuid});
-const agentStatusSchema=z.object({connection:z.enum(['connected','disconnected','not_connected','setup_needed','blocked']),work:z.enum(['working','idle','waiting','attention','unknown']),provisioned:z.boolean(),reason:z.string(),task_title:z.string().nullable(),last_seen_at:timestamp.nullable(),sampled_at:timestamp});
+const agentStatusSchema=z.object({connection:z.enum(['connected','disconnected','not_connected','setup_needed','blocked']),work:z.enum(['working','idle','waiting','attention','unknown']),provisioned:z.boolean(),reason:z.string(),task_title:z.string().nullable(),last_seen_at:timestamp.nullable(),sampled_at:timestamp,contact:z.object({mode:z.enum(['websocket','sse','long_poll','short_poll','checkpoint']),interval_seconds:z.number().optional(),next_at:timestamp.nullable(),listening_until:timestamp.nullable()}).nullable().optional()});
 const recipientKey=z.object({scheme:z.literal('age'),public_key:z.string(),fingerprint:z.string()});
 const message=z.object({id:uuid,project_id:uuid,environment_id:uuid,conversation_id:uuid,sequence,sender_id:uuid.nullable(),author_type:z.enum(['owner','agent','system']),recipient_agent_id:uuid,type:z.string(),body:z.string(),task_id:uuid.nullable(),resource_id:uuid.nullable(),created_at:timestamp,acknowledged_at:timestamp.nullable(),retrieved_at:timestamp.nullable().optional(),owner_id:z.string().optional()});
 const conversation=z.object({kind:z.enum(['peer','owner']),id:uuid,project_id:uuid,environment_id:uuid,agent_a:uuid,agent_b:uuid,next_sequence:sequence,retained_after:sequence,created_at:timestamp});
@@ -80,6 +81,7 @@ for(const topic of ['messaging','tasks','transfers','packages'])route('get',`/ap
 route('post','/api/v1/recipient-key','Register your own age encryption public key; matching retries succeed, replacement requires administrator recovery','RecipientKeyInput');
 route('get','/api/v1/conversations/{id}/recipient-key','Read the authenticated conversation recipient encryption key');
 route('get','/api/v1/peers','Discover permitted peers with prompt_template, role_name, public description and recipient keys; role remains a legacy compatibility field',undefined,{query:['limit','after']});
+route('post','/api/v1/connection-mode','Report scheduled short polling or work-checkpoint polling. Active streaming transports are observed by the bridge.','ContactSchedule');
 route('post','/api/v1/sessions/challenge','Obtain a single-use 60-second challenge with a signed device-bound request before connecting','Empty',{session:false});
 route('post','/api/v1/sessions','Start or resume a key-bound session; legacy credentials replace the previous instance. Link enabled project peers except owner-disabled pairs','SessionInput',{session:false});
 route('post','/api/v1/sessions/current/close','Close the session and leave uncertain claims for reconciliation','Empty');

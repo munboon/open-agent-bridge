@@ -2,7 +2,7 @@ import type { Transaction } from './db';
 import { agentStatus } from './agent-status';
 
 export async function agentStatuses(client: Transaction, ownerId: string, projectId: string | null = null) {
-  const rows = await client.query(`SELECT a.id,a.active,p.state project_state,a.session_id IS NOT NULL has_session,a.last_seen_at,
+  const rows = await client.query(`SELECT a.id,a.generation,a.contact_state,a.active,p.state project_state,a.session_id IS NOT NULL has_session,a.last_seen_at,
     EXISTS(SELECT 1 FROM bridge_credentials c WHERE c.agent_id=a.id) has_credential,
     EXISTS(SELECT 1 FROM bridge_credentials c WHERE c.agent_id=a.id AND c.revoked_at IS NULL AND c.expires_at>now()) valid_credential,
     EXISTS(SELECT 1 FROM bridge_pairings x WHERE x.agent_a=a.id OR x.agent_b=a.id) paired,

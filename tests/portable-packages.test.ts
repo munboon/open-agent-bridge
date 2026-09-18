@@ -116,6 +116,19 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('portable enrollment and bridge 
   expect((await call({...c,session:previous},'bootstrap')).status).toBe(200); // Bootstrap discovers identity without authorizing an inbox session.
   expect((await call({...c,session:previous},'inbox?wait_seconds=0')).status).toBe(409);
  });
+ it('reports polling schedules only explicitly and does not reset them on unrelated contact',async()=>{
+  const c=await agent('Contact schedule');await claim(c);
+  const state=async()=>(await db.query('SELECT contact_state FROM bridge_agents WHERE id=$1',[c.agentId])).rows[0].contact_state;
+  await call(c,'inbox?wait_seconds=0');expect(await state()).toBeNull();
+  expect((await call(c,'connection-mode',{mode:'short_poll',interval_seconds:0})).status).toBe(422);
+  expect((await call(c,'connection-mode',{mode:'short_poll',interval_seconds:5})).status).toBe(200);
+  const snapshot:any=await adminOperation(db,owner,'GET',['projects',project],null);
+  expect(snapshot.agents.find((a:any)=>a.id===c.agentId).status.contact).toMatchObject({mode:'short_poll',interval_seconds:5});
+  const declared=await state();await call(c,'bootstrap');expect((await state()).next_at).toBe(declared.next_at);
+  await call(c,'inbox?wait_seconds=0');expect(Date.parse((await state()).next_at)).toBeGreaterThanOrEqual(Date.parse(declared.next_at));
+  expect((await call(c,'connection-mode',{mode:'checkpoint'})).status).toBe(200);expect((await state()).next_at).toBeNull();
+  await call(c,'sessions/current/close',{});expect(await state()).toMatchObject({mode:'checkpoint',next_at:null,listening_until:null});
+ });
  it('rejects replay, altered payload and altered path',async()=>{
   const headers=signedHeaders(a,'GET','/api/v1/peers','');
   expect((await handleAgentRequest(new Request(a.origin+'/api/v1/peers',{headers}),db)).status).toBe(200);
@@ -190,10 +203,10 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('portable enrollment and bridge 
    try {expect(next.status).toBe(200);} finally {await next.body?.cancel();}
   } finally {await first.body?.cancel();}
  });
- it.each(['websocket','sse','poll'])('runs the portable client with %s and verifies a multi-part parcel',async(mode)=>{
+ it.each(['websocket','sse','poll','short'])('runs the portable client with %s and verifies a multi-part parcel',async(mode)=>{
   const sender=await agent('Portable sender '+mode),recipient=await agent('Portable receiver '+mode);const local=await mkdtemp(join(tmpdir(),'bridge-client-test-'));const privateRoots:string[]=[];
   const server=createServer(async(req,res)=>{try{const parts:Buffer[]=[];for await(const part of req)parts.push(Buffer.from(part));const result=await handleAgentRequest(new Request(`http://127.0.0.1:${(server.address() as any).port}${req.url}`,{method:req.method,headers:req.headers as Record<string,string>,body:req.method==='POST'?Buffer.concat(parts):undefined}),db);res.writeHead(result.status,Object.fromEntries(result.headers));if(result.headers.get('content-type')?.includes('text/event-stream')){const reader=result.body!.getReader();res.on('close',()=>void reader.cancel());while(true){const part=await reader.read();if(part.done)break;res.write(Buffer.from(part.value));}res.end();}else res.end(Buffer.from(await result.arrayBuffer()));}catch{res.writeHead(500);res.end('{}');}});
-  const sockets=attachMessageSockets(server,(request:Request)=>handleAgentRequest(request,db));
+  const sockets=attachMessageSockets(server,(request:Request)=>handleAgentRequest(request,db,'websocket'));
   server.listen(0,'127.0.0.1');await once(server,'listening');const origin=`http://127.0.0.1:${(server.address() as any).port}`;let listener:ReturnType<typeof spawn>|undefined;
   try{
    const configs=[];
@@ -209,6 +222,8 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('portable enrollment and bridge 
    const bytes=randomBytes(300000),source=join(local,'parcel.bin'),output=join(local,'received.bin');await writeFile(source,bytes);const uploaded=await clientMain(['upload',configs[0],conversation.id,source,'synthetic']);
    listener=spawn(process.execPath,['scripts/bridge-client.mjs','listen',configs[1],mode],{stdio:['ignore','pipe','pipe']});
    await new Promise<void>((resolve,reject)=>{const timeout=setTimeout(()=>reject(Error('Listener did not receive parcel notification')),5000);listener!.stdout!.on('data',chunk=>{if(String(chunk).includes('Bridge message stored:')){clearTimeout(timeout);resolve();}});listener!.once('exit',()=>{clearTimeout(timeout);reject(Error('Listener exited early'));});});
+   const observed=(await db.query('SELECT contact_state FROM bridge_agents WHERE id=$1',[recipient.agentId])).rows[0].contact_state;
+   expect(observed.mode).toBe(mode==='poll'?'long_poll':mode==='short'?'short_poll':mode);
    const inbox=await clientMain(['inbox',configs[1]]);expect(inbox.some((m:any)=>m.type==='package_ready')).toBe(true);
    const result=await clientMain(['download',configs[1],uploaded.package_id,output]);expect(result.verified).toBe(true);expect(await readFile(output)).toEqual(bytes);expect((await readdir(root)).some(n=>n.startsWith(uploaded.package_id))).toBe(false);
    const encrypted=await clientMain(['upload',configs[0],conversation.id,source,'sensitive','encrypted-test']);

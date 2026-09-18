@@ -95,7 +95,7 @@ export function connectionModes(capabilities,requested='auto',hasWebSocket=typeo
  const modes=[];
  if(hasWebSocket&&supported.includes('websocket'))modes.push('websocket');
  if(supported.includes('sse'))modes.push('sse');
- modes.push('poll');return modes;
+ modes.push('poll');if(supported.includes('short_poll'))modes.push('short');return modes;
 }
 async function* receiveSocket(config){
  if(typeof WebSocket!=='function')throw Error('Native WebSocket unavailable; choose auto or poll.');
@@ -111,6 +111,7 @@ async function* receiveSocket(config){
 }
 async function* receive(config,mode){
  if(mode==='websocket'){yield* receiveSocket(config);return;}
+ if(mode==='short'){yield await request(config,'GET','inbox?wait_seconds=0&limit=100');return;}
  if(mode==='poll'){yield await request(config,'GET','inbox?wait_seconds=20&limit=100');return;}
  const target='/api/v1/events';
  const response=await fetch(config.origin+target,{headers:signedHeaders(config,'GET',target),redirect:'error',signal:AbortSignal.timeout(30000)});
@@ -120,16 +121,18 @@ async function* receive(config,mode){
  const reader=response.body.getReader(),decoder=new TextDecoder();let buffer='';
  try{while(true){const part=await reader.read();if(part.done)break;buffer+=decoder.decode(part.value,{stream:true});if(buffer.length>8388608)throw Error('Bridge event exceeds limit.');let end;while((end=buffer.indexOf('\n\n'))>=0){const event=buffer.slice(0,end);buffer=buffer.slice(end+2);if(event.startsWith('event: messages\n')){const data=event.split('\n').find(line=>line.startsWith('data: '));if(data)yield JSON.parse(data.slice(6));}}}}finally{await reader.cancel().catch(()=>{});}
 }
-async function listen(file,mode='auto'){
- if(!['auto','websocket','sse','poll'].includes(mode))throw Error('Listener mode must be auto, websocket, sse or poll.');
+async function listen(file,mode='auto',interval=5){
+ interval=Number(interval);if(!Number.isInteger(interval)||interval<1||interval>60)throw Error('Short polling interval must be 1 to 60 seconds.');
+ if(!['auto','websocket','sse','poll','short'].includes(mode))throw Error('Listener mode must be auto, websocket, sse, poll or short.');
  const {root,config}=await load(file);if(!config.session)throw Error('Run connect first.');
  return locked(root,'listener',async()=>{
   const bootstrap=await request(config,'GET','bootstrap');
-  const modes=connectionModes(bootstrap.capabilities,mode);let modeIndex=0,failures=0;
+  const modes=connectionModes(bootstrap.capabilities,mode);let modeIndex=0,failures=0,reportedShort=false;
   process.stdout.write('Bridge listener mode: '+modes[modeIndex]+'\n');
   const inbox=join(root,'inbox');await privateDirectory(inbox);
   let stopped=false;const stop=()=>{stopped=true;};process.once('SIGINT',stop);process.once('SIGTERM',stop);let delay=1000;
   try{while(!stopped){try{
+   if(modes[modeIndex]==='short'&&bootstrap.capabilities?.contact_schedule&&!reportedShort){await request(config,'POST','connection-mode',{mode:'short_poll',interval_seconds:interval});reportedShort=true;}
    for await(const batch of receive(config,modes[modeIndex])){
     if(stopped)break;
     for(const message of batch.messages){
@@ -138,7 +141,7 @@ async function listen(file,mode='auto'){
      try{await lstat(path);}catch(error){if(error.code!=='ENOENT')throw error;await atomic(path,message);process.stdout.write('Bridge message stored: '+message.id+'\n');}
     }
    }
-   delay=1000;failures=0;if(!stopped)await sleep(1000);
+   delay=1000;failures=0;if(!stopped)await sleep(modes[modeIndex]==='short'?interval*1000:1000);
   }catch(error){
    if([401,403,409,410].includes(error.status))throw error;
    if(++failures>=2&&modeIndex<modes.length-1){modeIndex++;failures=0;process.stdout.write('Bridge listener fallback: '+modes[modeIndex]+'\n');}
@@ -204,7 +207,7 @@ async function download(file,id,destination){
 }
 export async function main(args){const [command,file,...rest]=args;if(!file)throw Error('Usage: bridge-client.mjs enroll|connect|listen|inbox|request|upload|download <config-file> ...');
  if(command==='encryption-setup')return encryptionSetup(file);
- if(command==='enroll')return enroll(file);if(command==='connect')return connect(file);if(command==='listen')return listen(file,rest[0]);
+ if(command==='enroll')return enroll(file);if(command==='connect')return connect(file);if(command==='listen')return listen(file,rest[0],rest[1]);
  if(command==='upload')return upload(file,...rest);if(command==='download')return download(file,...rest);
  const {root,config}=await load(file);
  if(command==='inbox'){const dir=join(root,'inbox');await privateDirectory(dir);return Promise.all((await readdir(dir)).filter(n=>/^[0-9a-f-]{36}\.json$/.test(n)).map(n=>readPrivate(join(dir,n))));}

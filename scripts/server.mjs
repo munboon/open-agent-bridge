@@ -19,7 +19,7 @@ const app=next({dev:false,hostname,port,httpServer:server});
 await app.prepare();
 const handler=app.getRequestHandler();
 server.on('request',(request,response)=>{void handler(request,response);});
-const sockets=attachMessageSockets(upgrades,request=>handleAgentRequest(request,pool),{origin:process.env.BETTER_AUTH_URL});
+const sockets=attachMessageSockets(upgrades,request=>handleAgentRequest(request,pool,'websocket'),{origin:process.env.BETTER_AUTH_URL});
 server.listen(port,hostname,()=>console.log(`Bridge listening on ${hostname}:${port}`));
 let closing=false;
 async function close(){if(closing)return;closing=true;for(const socket of sockets.clients)socket.terminate();server.close();await app.close();await pool.end();}

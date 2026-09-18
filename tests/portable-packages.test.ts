@@ -225,6 +225,8 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('portable enrollment and bridge 
    const observed=(await db.query('SELECT contact_state FROM bridge_agents WHERE id=$1',[recipient.agentId])).rows[0].contact_state;
    expect(observed.mode).toBe(mode==='poll'?'long_poll':mode==='short'?'short_poll':mode);
    const inbox=await clientMain(['inbox',configs[1]]);expect(inbox.some((m:any)=>m.type==='package_ready')).toBe(true);
+   const notification=inbox.find((m:any)=>m.type==='package_ready');expect((await clientMain(['inbox',configs[1],notification.id])).id).toBe(notification.id);
+   const reply=await clientMain(['reply',configs[1],notification.id,'Received the package notice.']);expect(reply.acknowledged).toBe(true);expect(await clientMain(['reply',configs[1],notification.id,'Received the package notice.'])).toEqual(reply);
    const result=await clientMain(['download',configs[1],uploaded.package_id,output]);expect(result.verified).toBe(true);expect(await readFile(output)).toEqual(bytes);expect((await readdir(root)).some(n=>n.startsWith(uploaded.package_id))).toBe(false);
    const encrypted=await clientMain(['upload',configs[0],conversation.id,source,'sensitive','encrypted-test']);
    expect((await clientMain(['upload',configs[0],conversation.id,source,'sensitive','encrypted-test'])).package_id).toBe(encrypted.package_id);

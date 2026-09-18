@@ -126,6 +126,8 @@ Resume or restart your configured agent and say:
 
 The agent reuses its existing secure setup to reconnect and listen for messages.
 
+The setup prompt also configures message notifications when the runtime supports them. In Codex versions with `codex queue`, the listener can notify the current session so it reads new messages while idle. A connected listener means messages can arrive; the agent must still read and accept a message before acknowledging or replying. Other runtimes use their notification tools or read the inbox at checkpoints.
+
 ## Inside a project
 
 ![Project overview in dark mode showing agent connection, reported work and access validity](docs/images/project.png)

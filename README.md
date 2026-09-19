@@ -6,7 +6,9 @@ Open Agent Bridge is designed to connect independently running AI agents across 
 
 Control which agents can communicate and follow their reported work in a web portal.
 
-[Download v0.1.0](https://github.com/munboon/open-agent-bridge/releases/tag/v0.1.0) · [Watch the demos](#see-it-in-action) · [Get started](docs/INSTALLATION.md) · [First shared task](docs/FIRST-TASK.md) · [Documentation](#documentation) · [Contribute](CONTRIBUTING.md)
+[Website](https://openagentbridge.org) · [Documentation](https://docs.openagentbridge.org) · [API reference](https://docs.openagentbridge.org/api/)
+
+[Download v0.1.0](https://github.com/munboon/open-agent-bridge/releases/tag/v0.1.0) · [Watch the demos](#see-it-in-action) · [Get started](docs/INSTALLATION.md) · [First shared task](docs/FIRST-TASK.md) · [Source guides](#documentation) · [Contribute](CONTRIBUTING.md)
 
 **v0.1.0 · Early access · Apache-2.0 · Ubuntu first**
 
@@ -102,7 +104,7 @@ The bridge does not start stopped agents or execute remote shell commands. Recei
 | Coordination across the internet | Confirmed to work. Both agents need access to the same HTTPS bridge. |
 | Other agent runtimes | Integrate through the signed Node client or a compatible client. The runtime needs tools to authenticate, poll for incoming work and report results. |
 
-Agents use their own models, tools and permissions. The bridge does not depend on a provider's native teammate messaging. See [API and protocol](docs/API.md) for integration requirements and [release readiness](docs/RELEASE-READINESS.md) for the test record.
+Agents use their own models, tools and permissions. The bridge does not depend on a provider's native teammate messaging. See [API and protocol](https://docs.openagentbridge.org/api/) for integration requirements and [release readiness](docs/RELEASE-READINESS.md) for the test record.
 
 ## Get started
 
@@ -144,7 +146,7 @@ No. Agents use their own installed runtime, provider account and tools. The brid
 
 ### Which agents can connect?
 
-Codex and Claude Code are confirmed to work, both with agents using the same runtime and with each other. The project includes manually launched Codex kits and a signed client with setup instructions for other agent runtimes. Those runtimes need tools to authenticate, maintain a polling listener and handle incoming work. The bridge uses its own HTTPS API; it does not currently implement MCP or A2A. See [API and protocol](docs/API.md).
+Codex and Claude Code are confirmed to work, both with agents using the same runtime and with each other. The project includes manually launched Codex kits and a signed client with setup instructions for other agent runtimes. Those runtimes need tools to authenticate, maintain a polling listener and handle incoming work. The bridge provides an HTTPS API for these integrations. See [API and protocol](https://docs.openagentbridge.org/api/).
 
 ### Can agents retrieve history or ask each other for context?
 
@@ -178,12 +180,14 @@ No domain is needed for local development. Remote access needs a reachable HTTPS
 
 ## Documentation
 
+Read the [documentation website](https://docs.openagentbridge.org) for setup, operating guides and worked examples. The source guides are listed below.
+
 | I want to… | Read |
 | --- | --- |
 | Install and create my administrator | [Installation](docs/INSTALLATION.md) |
 | Connect two agents and complete a task | [First shared task](docs/FIRST-TASK.md) |
 | Understand enrollment and private keys | [Portable agents](docs/PORTABLE-AGENTS.md) |
-| Work with the API | [API and protocol](docs/API.md) |
+| Work with the API | [API and protocol](https://docs.openagentbridge.org/api/) |
 | Host, upgrade, back up or recover | [Operations](docs/OPERATIONS.md) |
 | Diagnose a problem | [Troubleshooting](docs/TROUBLESHOOTING.md) |
 | Configure direct file-transfer helpers | [Transfer helpers](helpers/README.md) |
@@ -191,7 +195,7 @@ No domain is needed for local development. Remote access needs a reachable HTTPS
 
 ## What comes next
 
-The next validation priorities are an independent signed-enrollment agent pilot, Windows runtime verification and broader installation feedback. Future integration work may explore MCP and A2A, but neither is implemented or promised for a release date. Current decisions are recorded in [project status](docs/PROJECT-STATUS.md).
+The next validation priorities are an independent signed-enrollment agent pilot, Windows runtime verification and broader installation feedback. Current decisions are recorded in [project status](docs/PROJECT-STATUS.md).
 
 ## Contributing and support
 

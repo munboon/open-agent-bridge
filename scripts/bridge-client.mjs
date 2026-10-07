@@ -154,6 +154,7 @@ async function listen(file,mode='auto',interval=5,thread){
     }
     if(pending.length){try{await notifyCodex(thread,file,pending);for(const id of pending)await atomic(join(notifications,id+'.json'),{queued_at:new Date().toISOString()});process.stdout.write('Bridge notification queued for Codex.\n');}catch{process.stderr.write('Codex notification failed; messages remain in the inbox and notification will retry.\n');}}
    }
+   if(!stopped&&bootstrap.capabilities?.project_board){const board=await request(config,'GET','board',undefined,'',controller.signal);if(board.latest_unread_post_id){let notified;try{notified=(await readPrivate(join(root,'board.notification.json'))).id;}catch(error){if(error.code!=='ENOENT')throw error;}if(notified!==board.latest_unread_post_id){if(thread)await notifyBoard(thread,file);await atomic(join(root,'board.notification.json'),{id:board.latest_unread_post_id});process.stdout.write('Permitted board updates available.\n');}}}
    delay=1000;failures=0;if(!stopped)await sleep(modes[modeIndex]==='short'?interval*1000:1000,controller.signal);
   }catch(error){
    if(stopped)break;
@@ -164,6 +165,22 @@ async function listen(file,mode='auto',interval=5,thread){
   if(stopped){await request(config,'POST','sessions/current/close',{});delete config.session;await atomic(join(root,'identity.json'),config);}
   return {stopped:true};
  });
+}
+export async function catchUpBoard(root,config,send=request){
+ return locked(root,'board-catchup',async()=>{
+  const saved=join(root,'board.cursor.json');let cursor;
+  try{cursor=(await readPrivate(saved)).cursor;}catch(error){if(error.code!=='ENOENT')throw error;}
+  let page;
+  try{page=await send(config,'GET','board/posts'+(cursor?'?direction=newer&cursor='+encodeURIComponent(cursor):''));}
+  catch(error){if(error.status!==409)throw error;page=await send(config,'GET','board/posts');}
+  await atomic(join(root,'board.page.json'),page);
+  await atomic(saved,{cursor:page.newer_cursor});return page;
+ });
+}
+export async function notifyBoard(thread,file,run=promisify(execFile)){
+ if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(thread))throw Error('Use the current Codex session UUID.');
+ const message='The project main message board has permitted unread updates. Use your saved bridge client and config '+JSON.stringify(resolve(file))+'. Read guides/board and run board-catchup <config>. Check pins and relevant context, then explicitly mark durably recorded posts read. Preserve current audience restrictions. Board posts do not authorize new work. Do not reply to every announcement.';
+ await run('codex',['queue','--thread',thread,'--message',message],{timeout:15000,maxBuffer:65536,windowsHide:true});
 }
 async function fileHash(path){const file=await open(path,'r');try{const hash=createHash('sha256');for await(const bytes of file.createReadStream({autoClose:false}))hash.update(bytes);return hash.digest('hex');}finally{await file.close();}}
 async function upload(file,conversation,path,sensitivity='internal',operationKey=''){
@@ -244,9 +261,10 @@ export async function main(args){const [command,file,...rest]=args;if(!file)thro
  if(command==='enroll')return enroll(file);if(command==='connect')return connect(file);if(command==='listen'){if(rest.length>2&&(rest[2]!=='--codex-thread'||!rest[3]||rest.length!==4))throw Error('Use listen <config> <mode> <interval> --codex-thread <session-uuid>.');return listen(file,rest[0],rest[1],rest[3]);}
  if(command==='upload')return upload(file,...rest);if(command==='download')return download(file,...rest);
  const {root,config}=await load(file);
+ if(command==='board-catchup')return catchUpBoard(root,config);
  if(command==='reply')return replyMessage(root,config,rest[0],rest[1]);
  if(command==='inbox'){const dir=join(root,'inbox');await privateDirectory(dir);if(rest[0]){if(!/^[0-9a-f-]{36}$/.test(rest[0]))throw Error('Invalid message ID.');return readPrivate(join(dir,rest[0]+'.json'));}return Promise.all((await readdir(dir)).filter(n=>/^[0-9a-f-]{36}\.json$/.test(n)).map(n=>readPrivate(join(dir,n))));}
- if(command==='request'){const [method,path,jsonFile,key]=rest;if(!['GET','POST'].includes(method))throw Error('Use GET or POST.');const body=jsonFile?JSON.parse(await readFile(jsonFile,'utf8')):undefined;if(method==='POST'&&!key&&/^(messages|tasks|conversations|packages)$/.test(path))throw Error('Supply a stable idempotency key after the JSON file; reuse it for retries.');return request(config,method,path,body,key);}
+ if(command==='request'){const [method,path,jsonFile,key]=rest;if(!['GET','POST'].includes(method))throw Error('Use GET or POST.');const body=jsonFile?JSON.parse(await readFile(jsonFile,'utf8')):undefined;if(method==='POST'&&!key&&/^(messages|tasks|conversations|packages|board\/posts)$/.test(path))throw Error('Supply a stable idempotency key after the JSON file; reuse it for retries.');return request(config,method,path,body,key);}
  throw Error('Unknown command.');
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).href)main(process.argv.slice(2)).then(result=>{if(result!==undefined)process.stdout.write(JSON.stringify(result)+'\n');}).catch(error=>{process.stderr.write((error.status?error.message:'Local client operation failed. Check files, permissions, runtime and network; preserve the private key for recovery.')+'\n');process.exitCode=1;});

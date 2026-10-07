@@ -1,3 +1,4 @@
+import { accessDays, accessExpiry } from './access-duration';
 import {createHash} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
@@ -10,13 +11,13 @@ import {fail,inaccessible} from './protocol';
 import {roleWorkInstructions} from './agent-instructions';
 import {conversationResponseRules} from './agent-guides';
 export async function issueEnrollment(client:Transaction,owner:Owner,projectId:string,agentId:string,body:unknown){
- const input=z.strictObject({expires_days:z.number().int().min(1).max(90).default(60),replace:z.boolean().default(false)}).parse(body);
+ const input=z.strictObject({expires_days:accessDays.default(60),replace:z.boolean().default(false)}).parse(body);
  const agent=(await client.query('SELECT a.*,p.state,p.name AS project_name FROM bridge_agents a JOIN bridge_projects p ON p.id=a.project_id WHERE a.id=$1 AND p.id=$2 AND p.owner_id=$3',[agentId,projectId,owner.id])).rows[0];
  if(!agent)inaccessible();if(!agent.active||agent.state==='archived')fail(409,'AGENT_UNAVAILABLE','Enable the agent and resume its project first.');
  if(agent.key_bound&&!input.replace)fail(409,'ALREADY_ENROLLED','This agent already has a registered key. Choose Replace access to move it.');
  // Issuing a replacement does not interrupt the active installation until claim.
  await client.query('UPDATE bridge_credentials SET revoked_at=now(),kit_envelope=NULL WHERE agent_id=$1 AND enrollment_expires_at IS NOT NULL AND bound_at IS NULL AND revoked_at IS NULL',[agentId]);
- const credential=newCredential();const expires=new Date(Date.now()+input.expires_days*86400000);const deadline=new Date(Date.now()+30*60000);
+ const credential=newCredential();const expires=accessExpiry(input.expires_days);const deadline=new Date(Date.now()+30*60000);
  await client.query('INSERT INTO bridge_credentials(id,agent_id,digest,expires_at,enrollment_expires_at,device_required) VALUES($1,$2,$3,$4,$5,true)',[credential.id,agentId,credential.digest,expires,deadline]);
  await audit(client,{id:owner.id,owner_id:owner.id,project_id:projectId},'agent.enrollment.issue',credential.id);
  const origin=new URL(process.env.BETTER_AUTH_URL??'http://127.0.0.1:3220').origin;
@@ -30,7 +31,7 @@ Agent ID: ${agentId}
 Agent name: ${JSON.stringify(agent.name)}
 Enrollment code: ${credential.token}
 Enroll before: ${deadline.toISOString()}
-Access expires: ${expires.toISOString()}
+Access: ${expires ? `Expires ${expires.toISOString()}` : 'Unlimited (until revoked)'}
 
 ## Message responses
 
@@ -54,7 +55,7 @@ ${agent.work_instructions??roleWorkInstructions(agent.prompt_template??agent.rol
 
 Report only the verified registered name, connection status and any actionable issue. Never print the enrollment code or private key. Software key storage prevents copying only the agent folder; it does not prevent impersonation if the separate private key is stolen. Hardware-backed keys are not claimed by this setup.
 `;
- return {enrollment_id:credential.id,prompt,expires_at:deadline.toISOString(),access_expires_at:expires.toISOString()};
+ return {enrollment_id:credential.id,prompt,expires_at:deadline.toISOString(),access_expires_at:expires?.toISOString() ?? null};
 }
 export async function claimEnrollment(client:Transaction,who:AgentIdentity,access:AgentAccess,body:unknown){
  const input=z.strictObject({public_key:z.string().max(512)}).parse(body);validPublicKey(input.public_key);

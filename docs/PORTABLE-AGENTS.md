@@ -24,9 +24,8 @@ New Linux and macOS enrollments use `~/.config/open-agent-bridge/<identity-hash>
 Windows uses `%LOCALAPPDATA%\OpenAgentBridge\<identity-hash>`. The hash includes
 the bridge origin and agent identity. Keys stay outside the project and kit folders.
 
-The initial standalone preview used `~/.config/open-agent-bridge-bridge/<identity-hash>`.
-The client continues using an existing identity in that location so a new download
-does not lose its keys or silently enroll a replacement. Existing keys are not moved.
+The client also reuses existing identities stored at
+`~/.config/open-agent-bridge-bridge/<identity-hash>`, preserving their keys in that location.
 
 The standalone protocol uses the `oab_` token prefix and
 `open-agent-bridge-request-v1` signing prefix. Kits from the predecessor product

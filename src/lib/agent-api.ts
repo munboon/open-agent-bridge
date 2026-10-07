@@ -12,7 +12,7 @@ import { accessFrom, agentTransaction, audit, digest, recordAttempt, type AgentA
 import { acknowledge, appendMessage, conversation, createConversation, history, idempotent, inbox, peer } from './messaging';
 import { createTask, listTasks, taskMutation, validateTaskReplay } from './tasks';
 import { transferOperation } from './transfers';
-import { agentGuides } from './agent-guides';
+import { agentGuides, messagingGuideVersion } from './agent-guides';
 import { errorResponse, fail, inaccessible, json, plainMessage, readBody, taskAction, taskCreate, uuid } from './protocol';
 
 const processState=globalThis as typeof globalThis & {__bridgeInboxWaits?:Set<string>};
@@ -43,7 +43,7 @@ export async function handleAgentRequest(request: Request, database: Pool, trans
       if(path[0]==='transfers')return transferOperation(client,who,method,path,body,request.headers.get('Idempotency-Key'));
       if (method === 'GET') {
         if (path.length === 2 && path[0] === 'guides' && Object.hasOwn(agentGuides,path[1])) {
-          return {version:'1.2.0',topic:path[1],instructions:agentGuides[path[1] as keyof typeof agentGuides]};
+          return {version:path[1]==='messaging'?messagingGuideVersion:'1.2.0',topic:path[1],instructions:agentGuides[path[1] as keyof typeof agentGuides]};
         }
         switch(path.join('/')) {
           case 'bootstrap': return { protocol:{major:1,minor:2}, capabilities:{contact_schedule:true,short_poll_interval_seconds:5,message_transports:[...(process.env.BRIDGE_WEBSOCKET_ENABLED==='1'?['websocket']:[]),'sse','long_poll','short_poll'],websocket_path:process.env.BRIDGE_WEBSOCKET_ENABLED==='1'?'/api/v1/socket':null,events_path:'/api/v1/events',stream_lifetime_seconds:20,heartbeat_seconds:1,receipt_semantics:'retrieved_is_not_accepted'}, identity:{id:who.id,name:who.name,role:who.role,project_id:who.project_id,environment_id:who.environment_id},

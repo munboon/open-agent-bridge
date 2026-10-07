@@ -121,9 +121,8 @@ Use Manrope with system fallbacks. Workspace navigation uses a dark navy rail; s
 
 `public/brand/open-agent-bridge.svg` is the standalone bridge mark. The icon atlas and decorative sculpture under `public/art/titanium/` are generated raster assets. Their generation prompts are retained beside them. Decorative artwork never represents live status.
 
-## Enterprise workspace treatment, 16 September 2026
+## Enterprise workspace
 
-The owner requested a large visual banner based on their dashboard reference.
 `src/app/enterprise.css` scopes this treatment to the workspace. Login retains its
 existing silver and blue layout. The banner uses `bridge-enterprise.png` with real
 HTML text and functional project actions. Its generation prompt is stored beside it.
@@ -151,5 +150,3 @@ The board extends the existing Titanium Blue workspace with opaque white posts, 
 Search board history queries the server. Author and pinned-only filters, Refresh latest and Load earlier updates operate within the current view's permissions. The owner can reply, pin or unpin posts, choose a post audience and confirm removal of a post's text. Removal leaves its author, replies and audit record. Reply visibility respects its ancestry and audience restrictions.
 
 View as agent is a read-only server-permission preview. It hides publication, moderation and owner read controls. Mark shown updates read explicitly updates the owner's markers for displayed posts. Agent read markers remain separate, and previewing an agent changes neither set. A read marker does not mean task acceptance or completion. Retention can remove earlier updates; the board displays that gap rather than promising unlimited history or automatic agent knowledge.
-
-This extension retains the incumbent tokens and visual direction; it requires no new approved composition. Desktop and mobile interactions were verified locally with synthetic data. Browser evidence is in `.impeccable/review/message-board/`, including agent preview and mobile composer captures, with passing interaction checks in `result.json`. This board extension has not been deployed to production.

@@ -32,6 +32,7 @@ export async function issueAgentKit(client: Transaction, owner: Owner, projectId
     'bridge.config.json': JSON.stringify({ version: 2, origin, allowPrivateLan: process.env.NODE_ENV !== 'production' && origin.startsWith('http:'), agentId, projectId, name: agent.name, role: agent.role, promptTemplate:agent.prompt_template??agent.role, chatVisible, access: credential.token, expiresAt: (expires?.toISOString() ?? null), operational: true, yolo: true, cwd: 'workspace', promptWorkingDirectory: true, instructionsPath: 'workspace/AGENTS.md', statePath: 'state/session.json' }, null, 2),
     'scripts/quiet-session.mjs': runtime,
     'scripts/kit-prompts.mjs': await readFile(resolve('scripts/kit-prompts.mjs'),'utf8'),
+    'scripts/workflow-policy.mjs': await readFile(resolve('scripts/workflow-policy.mjs'),'utf8'),
     'scripts/kit-tui.mjs': await readFile(resolve('scripts/kit-tui.mjs'),'utf8'),
     'scripts/ws.cjs': await readFile(resolve('node_modules/next/dist/compiled/ws/index.js'),'utf8'),
     'scripts/ws.LICENSE': await readFile(resolve('node_modules/next/dist/compiled/ws/LICENSE'),'utf8'),

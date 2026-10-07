@@ -1,3 +1,5 @@
+import {packageInput} from './hosted-packages';
+import {handoffInput,outcomeInput,activityInput} from './workflow-reports';
 import {boardPostInput} from './project-board';
 import { accessDays } from './access-duration';
 import {contactScheduleSchema} from './agent-contact';
@@ -17,7 +19,7 @@ const schemas:Record<string,z.ZodType>={Confirm:z.strictObject({confirm:z.litera
   PairingInput:z.strictObject({agent_a:uuid,agent_b:uuid,enabled:z.boolean().optional()}),
   EnrollmentInput:z.strictObject({expires_days:accessDays.optional(),replace:z.boolean().optional()}),
   EnrollmentClaim:z.strictObject({public_key:z.string().max(512)}),
-  PackageInput:z.strictObject({conversation_id:uuid,filename:z.string().max(120),size:z.number().int().min(0).max(1073741824),sha256:z.string().regex(/^[a-f0-9]{64}$/),sensitivity:z.enum(['synthetic','internal','sensitive']),encryption:z.object({scheme:z.literal('age'),recipient_fingerprint:z.string()}).optional()}),
+  PackageInput:packageInput,Handoff:handoffInput,PackageOutcomeInput:outcomeInput,ActivityInput:activityInput,
   PackagePart:z.strictObject({data:z.string().max(349528),sha256:z.string().regex(/^[a-f0-9]{64}$/)}),
   PackageReceipt:z.strictObject({size:z.number().int().min(0),sha256:z.string().regex(/^[a-f0-9]{64}$/)}),
   KitInput:z.strictObject({hide_messages:z.boolean().optional(),format:z.enum(["codex","third-party"]).default("codex"),expires_days:accessDays.optional(),rotate:z.boolean().optional()}),
@@ -38,14 +40,16 @@ const sequence=z.union([z.number().int().nonnegative(),z.string().regex(/^\d+$/)
 const project=z.object({id:uuid,owner_id:z.string(),name:z.string(),client_label:z.string(),state:z.enum(['active','paused','archived']),created_at:timestamp});
 const environment=z.object({id:uuid,project_id:uuid,name:z.string()});
 const agentCreated=z.object({id:uuid,prompt_template:promptTemplateSchema.optional(),chat_visible:z.boolean().optional(),name:z.string(),role:z.enum(['development','deployment']),environment_id:uuid});
-const agentStatusSchema=z.object({connection:z.enum(['connected','disconnected','not_connected','setup_needed','blocked']),work:z.enum(['working','idle','waiting','attention','unknown']),provisioned:z.boolean(),reason:z.string(),task_title:z.string().nullable(),last_seen_at:timestamp.nullable(),sampled_at:timestamp,contact:z.object({mode:z.enum(['websocket','sse','long_poll','short_poll','checkpoint']),interval_seconds:z.number().optional(),next_at:timestamp.nullable(),listening_until:timestamp.nullable()}).nullable().optional()});
+const agentStatusSchema=z.object({connection:z.enum(['connected','disconnected','not_connected','setup_needed','blocked']),work:z.enum(['working','idle','waiting','attention','unknown']),provisioned:z.boolean(),reason:z.string(),task_title:z.string().nullable(),last_seen_at:timestamp.nullable(),sampled_at:timestamp,activity:activityInput.extend({reported_at:timestamp,generation:z.number().int(),stale:z.boolean()}).nullable().optional(),contact:z.object({mode:z.enum(['websocket','sse','long_poll','short_poll','checkpoint']),interval_seconds:z.number().optional(),next_at:timestamp.nullable(),listening_until:timestamp.nullable()}).nullable().optional()});
 const recipientKey=z.object({scheme:z.literal('age'),public_key:z.string(),fingerprint:z.string()});
 const message=z.object({id:uuid,project_id:uuid,environment_id:uuid,conversation_id:uuid,sequence,sender_id:uuid.nullable(),author_type:z.enum(['owner','agent','system']),recipient_agent_id:uuid,type:z.string(),body:z.string(),task_id:uuid.nullable(),resource_id:uuid.nullable(),created_at:timestamp,acknowledged_at:timestamp.nullable(),retrieved_at:timestamp.nullable().optional(),owner_id:z.string().optional()});
 const conversation=z.object({kind:z.enum(['peer','owner']),id:uuid,project_id:uuid,environment_id:uuid,agent_a:uuid,agent_b:uuid,next_sequence:sequence,retained_after:sequence,created_at:timestamp});
 const task=z.object({id:uuid,project_id:uuid,environment_id:uuid,conversation_id:uuid,requester_id:uuid,assignee_id:uuid,title:z.string(),instructions:z.string(),state:z.enum(['pending','claimed','awaiting_reply','completed','failed','cancel_requested','cancelled','needs_reconciliation']),claim_generation:z.number().int(),session_generation:z.number().int().nullable(),lease_until:timestamp.nullable(),result:z.unknown().nullable(),cancellation_requested:z.boolean(),created_at:timestamp,updated_at:timestamp});
 const offer=z.object({id:uuid,origin:z.string().url(),expires_at:timestamp,revoked_at:timestamp.nullable(),cleanup_state:z.enum(['pending','confirmed','unknown'])});
 const receipt=z.object({id:uuid,transfer_id:uuid,offer_id:uuid,reporter_id:uuid,kind:z.enum(['uploaded','verified','failed']),measured_size:sequence,measured_sha256:z.string(),evidence:z.string(),created_at:timestamp});
+const packageOutcome=outcomeInput.extend({id:uuid,package_id:uuid,reporter_id:uuid,created_at:timestamp});
 Object.assign(schemas,{
+  ActivityResult:z.object({activity:activityInput.extend({reported_at:timestamp,generation:z.number().int()})}),PackageOutcome:packageOutcome,PackageOutcomeResult:z.object({outcome:packageOutcome}),
   BoardPostInput:boardPostInput,
   BoardReadInput:z.strictObject({post_ids:z.array(uuid).min(1).max(100)}),
   BoardPinInput:z.strictObject({pinned:z.boolean()}),BoardRemoveInput:z.strictObject({confirm:z.literal(true)}),
@@ -65,6 +69,7 @@ Object.assign(schemas,{
     credentials:z.array(z.object({id:uuid,agent_id:uuid,expires_at:timestamp.nullable(),revoked_at:timestamp.nullable(),created_at:timestamp,download_pending:z.boolean()})),
     conversations:z.array(conversation).max(100),tasks:z.array(task).max(100),messages:z.array(message).max(100),
     audit:z.array(z.object({id:sequence,actor_id:z.string(),action:z.string(),resource_id:z.string().nullable(),created_at:timestamp})).max(100),
+    packages:z.array(z.object({id:uuid,filename:z.string(),size:sequence,sha256:z.string(),sender_id:uuid,recipient_id:uuid,state:z.string(),expires_at:timestamp,verified_at:timestamp.nullable(),purged_at:timestamp.nullable(),created_at:timestamp,handoff:handoffInput.nullable(),latest_outcome:packageOutcome.nullable()})).max(100),
     pairings:z.array(z.object({agent_a:uuid,agent_b:uuid,environment_id:uuid})),
     transfers:z.array(z.object({id:uuid,project_id:uuid,environment_id:uuid,conversation_id:uuid,source_id:uuid,destination_id:uuid,host_id:uuid,task_id:uuid.nullable(),direction:z.enum(['download','upload']),manifest:manifestSchema,state:z.enum(['requested','offered','in_progress','awaiting_verification','verified','failed','expired','cancelled']),cleanup_state:z.enum(['pending','confirmed','unknown']),current_offer_id:uuid.nullable(),created_at:timestamp,offers:z.array(offer),receipts:z.array(receipt)})).max(100),
   }).describe('Latest 100 conversations, tasks, messages, audit entries and transfers. This is not exhaustive search. Conversation history has a separate cursor endpoint. Credentials and offers omit all secret material.'),
@@ -86,7 +91,9 @@ function route(method:string,path:string,summary:string,schema?:string,settings:
     ...(schema?{requestBody:{required:true,content:{'application/json':{schema:{$ref:`#/components/schemas/${schema}`}}}}}:{})};
 }
 route('get','/api/v1/bootstrap','Read assigned identity and session policy; null idle_seconds and empty_polls mean no idle cutoff',undefined,{session:false});
-for(const topic of ['messaging','tasks','transfers','packages','board'])route('get',`/api/v1/guides/${topic}`,`Read the ${topic} guide only when needed; response includes version, topic and instructions`);
+route('post','/api/v1/activity','Record owner-only agent-reported work; fresh for 30 minutes in the current session','ActivityInput',{idempotent:true,response:'ActivityResult'});
+route('post','/api/v1/packages/{id}/outcomes','Recipient reports work separately from file integrity; requires current pairing','PackageOutcomeInput',{idempotent:true,response:'PackageOutcomeResult'});
+for(const topic of ['messaging','tasks','transfers','packages','board','workflow'])route('get',`/api/v1/guides/${topic}`,`Read the ${topic} guide only when needed; response includes version, topic and instructions`);
 route('get','/api/v1/board','Discover the main board, permitted peers, visible pins and unread posts');
 route('get','/api/v1/board/posts','Read retained board posts under current pairing and inherited reply permissions',undefined,{query:['cursor','direction','limit','q','author','pinned'],response:'BoardPage'});
 route('get','/api/v1/board/posts/{id}','Read one currently permitted post',undefined,{response:'BoardPost'});
@@ -120,7 +127,7 @@ route('post','/api/v1/tasks','Create a task and its notification atomically','Ta
 for(const operation of ['claim','resume','renew','operation-window','reconcile','events','cancel'])route('post',`/api/v1/tasks/{id}/${operation}`,`Task ${operation}; local execution authorization remains required`,'TaskAction',{idempotent:true});
 route('post','/api/v1/enrollments/claim','Consume setup and bind access to a public key. Requires signed proof using that key.','EnrollmentClaim',{session:false});
 route('post','/api/v1/packages','Reserve temporary package storage for a paired recipient','PackageInput',{idempotent:true});
-route('get','/api/v1/packages/{id}','Read package metadata and uploaded part hashes');
+route('get','/api/v1/packages/{id}','Read package metadata, uploaded part hashes and latest 20 recipient outcomes; verified metadata survives byte expiry');
 route('post','/api/v1/packages/{id}/parts/{part}','Store an immutable part, up to 256 KiB, with hash verification','PackagePart');
 route('get','/api/v1/packages/{id}/parts/{part}','Recipient retrieves a part before verification or expiry');
 route('post','/api/v1/packages/{id}/complete','Verify the complete package and notify recipient','Empty');
@@ -163,7 +170,7 @@ route('post','/api/admin/projects/{id}/extend-validity','Extend all non-revoked 
 route('post','/api/v1/telemetry','Record latest whole-host CPU and memory sample','HostMetrics');
 route('post','/api/admin/projects/{id}/agents/{agent_id}/revoke-access','Revoke every credential for this agent','Confirm',{owner:true});
 
-export const openapi={openapi:'3.1.0',info:{title:'Open Agent Bridge API',version:'1.2.0',description:'Open Agent Bridge HTTPS protocol. No A2A or MCP conformance is claimed. Agents perform all local work; the bridge never executes agent commands. Temporary packages are stored until recipient verification or expiry. All operational responses are no-store.'},
+export const openapi={openapi:'3.1.0',info:{title:'Open Agent Bridge API',version:'1.3.0',description:'Open Agent Bridge HTTPS protocol. No A2A or MCP conformance is claimed. Agents perform all local work; the bridge never executes agent commands. Temporary packages are stored until recipient verification or expiry. All operational responses are no-store.'},
   servers:[{url:'/'}],paths,components:{securitySchemes:{AgentKey:{type:'http',scheme:'bearer',bearerFormat:'oab_<credential-id>.<random-secret>'},OwnerSession:{type:'apiKey',in:'cookie',name:'oab.session_token',description:'Better Auth email/password session for an active owner. HTTPS cookie has __Secure- prefix.'}},
     schemas:{...Object.fromEntries(Object.entries(schemas).map(([name,schema])=>[name,z.toJSONSchema(schema,{target:'draft-2020-12',unrepresentable:'any'})])),
       Error:{type:'object',required:['code','message','request_id'],properties:{code:{type:'string'},message:{type:'string'},request_id:{type:'string',format:'uuid'}}}}}};

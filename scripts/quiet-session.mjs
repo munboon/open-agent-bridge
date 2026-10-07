@@ -111,7 +111,7 @@ export class QuietSession {
       }
       const {body,key}=event.params.arguments;
       const path=typeof event.params.arguments.path==='string'?event.params.arguments.path.replace(/^\/api\/v1\//,''):'';
-      if(typeof path!=='string'||!/^(peers|guides|tasks|conversations|messages|transfers|board)(\/|\?|$)/.test(path)||path.includes('..')||path.includes('%')||path.includes('\\')||path.includes('#')||path.includes('/credential'))throw Error('Use a relative API path such as peers or guides/messaging; sessions and inbox are adapter-owned');
+      if(typeof path!=='string'||!/^(peers|guides|tasks|conversations|messages|transfers|packages|board|activity)(\/|\?|$)/.test(path)||path.includes('..')||path.includes('%')||path.includes('\\')||path.includes('#')||path.includes('/credential'))throw Error('Use a relative API path such as peers or guides/messaging; sessions and inbox are adapter-owned');
       if(body!==null && /^transfers\/[^/]+\/offers/.test(path))throw Error('Use bridge_transfer for private endpoint access');
       if(body!==null && (!key||typeof key!=='string'))throw Error('Persist a unique idempotency key for mutations');
       const value=await this.bridge(path,body===null?undefined:body,key??undefined);

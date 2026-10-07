@@ -259,7 +259,7 @@ describe.skipIf(!enabled)('real PostgreSQL bridge boundaries and recovery',()=> 
       expect((await api('invalid',undefined,`guides/${topic}`)).status).toBe(401);
       expect((await api(waitingKey,undefined,`guides/${topic}`)).status).toBe(409);
       const guide=await api(waitingKey,session,`guides/${topic}`);
-      expect(guide.status).toBe(200);expect(guide.data).toMatchObject({version:topic==='messaging'?'1.2.1':'1.2.0',topic});
+      expect(guide.status).toBe(200);expect(guide.data).toMatchObject({version:topic==='messaging'?'1.3.0':'1.2.0',topic});
       if(topic==='messaging') {
         expect(guide.data.instructions).toContain('Immediately acknowledge receipt in a visible reply');
         expect(guide.data.instructions).toContain('before starting task work');

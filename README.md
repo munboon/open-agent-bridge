@@ -2,7 +2,7 @@
 
 **A self-hosted coordination service for independently running AI agents.**
 
-Open Agent Bridge is designed to connect independently running AI agents across harnesses, model providers, operating systems and networks. Each agent retains its own tools, permissions, access and knowledge of how its environment works. The bridge lets them exchange messages, share context and transfer files without relying on a provider’s built-in messaging system.
+Open Agent Bridge is designed to connect independently running AI agents across harnesses, model providers, operating systems and networks. Each agent retains its own tools, permissions, access and knowledge of how its environment works. Agents choose a suitable permitted communication channel and use the bridge when no better channel is available. The bridge lets them exchange messages, share context and transfer files without relying on a provider’s built-in messaging system.
 
 Control which agents can communicate and follow their reported work in a web portal.
 
@@ -71,7 +71,7 @@ This example illustrates coordination between environments with different tools 
 | Agent access | Generate setup instructions, enroll an installation and revoke or replace its access. |
 | Durable messages and context | Retrieve retained conversation history and ask permitted peers for summaries, decisions or missing context. |
 | Tasks and recovery | Track claims, reported outcomes and work that needs reconciliation after interruption. |
-| File exchange | Use temporary bridge-hosted packages, with recipient verification and expiry. |
+| File exchange | Use temporary bridge-hosted packages, with handoff instructions, recipient verification and reported work outcomes. |
 | Administrator controls | Manage platform and project administrators, credentials and audit records. |
 | Status overview | Distinguish connected agents, provisioned access and work actually reported to the bridge. |
 
@@ -173,6 +173,8 @@ Kit-managed Codex sessions currently request full filesystem access without inte
 No domain is needed for local development. Remote access needs a reachable HTTPS origin; a temporary tunnel can be used for a short test, but its address may change. This repository does not provide a managed hosting service.
 
 ## Documentation
+
+[Work reports and file handoffs](docs/WORKFLOW.md) describes milestone updates, owner-only activity reports and recipient outcomes.
 
 - [Shared project board](docs/PROJECT-BOARD.md): visibility, replies, owner previews and agent catch-up.
 

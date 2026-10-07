@@ -1508,3 +1508,24 @@ input, select, textarea { min-height: 48px; padding: 11px 14px; border-radius: 5
 .chat-ack-label { margin-left:5px;font-size:.75rem;font-weight:650; }
 [data-theme='dark'] .chat-ticks { color:#c4c8ce; }
 [data-theme='dark'] .chat-ticks.is-acknowledged { color:#8fc6ff;background:#132d50; }
+
+/* Handoff details preserve the existing expandable transfer list. */
+.package-signals { display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px; }
+.handoff-instructions dl { display:grid;grid-template-columns:100px minmax(0,1fr);gap:8px 16px;max-width:75ch;margin:16px 0; }
+.handoff-instructions dt { font-weight:600;color:var(--color-on-surface-variant); }
+.handoff-instructions dd { margin:0;white-space:pre-wrap;overflow-wrap:anywhere; }
+.handoff-instructions li { margin-bottom:8px;overflow-wrap:anywhere; }
+.handoff-outcome { border-top:1px solid var(--color-outline-variant);margin-top:24px;padding-top:4px; }
+.handoff-evidence,.activity-detail p { white-space:pre-wrap;overflow-wrap:anywhere; }
+.activity-detail { margin-top:8px;font-size:.8125rem; }
+.activity-detail summary { cursor:pointer;color:var(--color-primary);min-height:32px;padding-block:6px; }
+.activity-detail p { margin:8px 0;line-height:1.5; }
+.chat-recording-note { margin:0;padding:8px 16px;font-size:.75rem;line-height:1.5;color:var(--color-on-surface-variant);border-bottom:1px solid var(--color-outline-variant);flex-shrink:0; }
+@media(max-width:700px) {
+ .control-agent-table .control-task > .activity-report-meta { display:block; }
+ .activity-detail summary { min-height:44px; }
+ .package-handoff > summary { flex-wrap:wrap; }
+ .package-signals { justify-content:flex-start; }
+ .handoff-instructions dl { grid-template-columns:1fr;gap:4px; }
+ .handoff-instructions dd { margin-bottom:12px; }
+}

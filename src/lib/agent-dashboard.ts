@@ -1,10 +1,13 @@
 import type { AgentStatus } from './agent-status';
 
-type Credential = { agent_id: string; expires_at: string; revoked_at: string | null };
+type Credential = { agent_id: string; expires_at: string | null; revoked_at: string | null };
 export function agentValidity(agentId: string, credentials: Credential[], now: number) {
-  const available = credentials.filter(c => c.agent_id === agentId && !c.revoked_at)
+  const active = credentials.filter(c => c.agent_id === agentId && !c.revoked_at);
+  const unlimited = active.filter(c => c.expires_at === null);
+  const available = active.filter((c): c is Credential & { expires_at: string } => c.expires_at !== null)
     .map(c => new Date(c.expires_at).getTime()).filter(Number.isFinite).sort((a,b) => a-b);
   const valid = available.filter(expiry => expiry > now);
+  if (unlimited.length) return { state: 'unlimited' as const, days: null, expiry: null, count: unlimited.length + valid.length };
   const expiry = valid[0] ?? available.at(-1);
   if (expiry === undefined) return { state: 'missing' as const, days: 0, expiry: null, count: 0 };
   const days = Math.max(0, Math.ceil((expiry-now)/86400000));

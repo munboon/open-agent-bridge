@@ -1,3 +1,4 @@
+import {accessDays,accessExpiry} from './access-duration';
 import {codexInstructions,roleWorkInstructions} from './agent-instructions';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
@@ -11,7 +12,7 @@ import { zipFiles } from './kit-archive';
 import { conversationResponseRules } from './agent-guides';
 
 export async function issueAgentKit(client: Transaction, owner: Owner, projectId: string, agentId: string, body: unknown) {
-  const input = z.strictObject({ format:z.enum(['codex','third-party']).default('codex'), hide_messages:z.boolean().optional(), expires_days: z.number().int().min(1).max(90).default(60), rotate: z.boolean().default(false) }).parse(body);
+  const input = z.strictObject({ format:z.enum(['codex','third-party']).default('codex'), hide_messages:z.boolean().optional(), expires_days: accessDays.default(60), rotate: z.boolean().default(false) }).parse(body);
   const found = await client.query(`SELECT a.*,p.name AS project_name,p.state FROM bridge_agents a JOIN bridge_projects p ON p.id=a.project_id
     WHERE a.id=$1 AND p.id=$2 AND p.owner_id=$3`, [agentId, projectId, owner.id]);
   if (!found.rowCount) inaccessible();
@@ -20,15 +21,15 @@ export async function issueAgentKit(client: Transaction, owner: Owner, projectId
   const chatVisible=input.hide_messages===undefined?(agent.chat_visible??agent.role==='development'):!input.hide_messages;
   if (!agent.active || agent.state === 'archived') fail(409, 'AGENT_UNAVAILABLE', 'Enable the agent and resume its project before issuing a kit.');
   const runtime = await readFile(resolve('scripts/quiet-session.mjs'), 'utf8');
-  const prepared = input.rotate ? null : (await client.query('SELECT id,digest,expires_at,kit_envelope FROM bridge_credentials WHERE agent_id=$1 AND kit_envelope IS NOT NULL AND revoked_at IS NULL AND expires_at>now() ORDER BY created_at DESC LIMIT 1 FOR UPDATE',[agentId])).rows[0];
+  const prepared = input.rotate ? null : (await client.query('SELECT id,digest,expires_at,kit_envelope FROM bridge_credentials WHERE agent_id=$1 AND kit_envelope IS NOT NULL AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at>now()) ORDER BY created_at DESC LIMIT 1 FOR UPDATE',[agentId])).rows[0];
   const credential = prepared ? {id:prepared.id,digest:prepared.digest,token:pendingAccess(prepared.kit_envelope,agentId,prepared.id)} : newCredential();
-  const expires = prepared ? new Date(prepared.expires_at) : new Date(Date.now() + input.expires_days * 86400000);
+  const expires = prepared ? (prepared.expires_at === null ? null : new Date(prepared.expires_at)) : accessExpiry(input.expires_days);
   const origin = new URL(process.env.BETTER_AUTH_URL ?? 'http://127.0.0.1:3220').origin;
   const instructions = codexInstructions(agent,agentId);
   const files = {
     'LICENSE': await readFile(resolve('LICENSE'), 'utf8'),
     'NOTICE.txt': 'Open Agent Bridge agent kit\nCopyright (c) 2026 Mun Boon\nSPDX-License-Identifier: Apache-2.0\nProject scripts are supplied as source under Apache License, Version 2.0, without warranty. See LICENSE.\nThe bundled WebSocket component retains its MIT license in scripts/ws.LICENSE.\nCredentials and user task content are not licensed by this notice. Never redistribute a configured kit containing credentials.\n',
-    'bridge.config.json': JSON.stringify({ version: 2, origin, allowPrivateLan: process.env.NODE_ENV !== 'production' && origin.startsWith('http:'), agentId, projectId, name: agent.name, role: agent.role, promptTemplate:agent.prompt_template??agent.role, chatVisible, access: credential.token, expiresAt: expires.toISOString(), operational: true, yolo: true, cwd: 'workspace', promptWorkingDirectory: true, instructionsPath: 'workspace/AGENTS.md', statePath: 'state/session.json' }, null, 2),
+    'bridge.config.json': JSON.stringify({ version: 2, origin, allowPrivateLan: process.env.NODE_ENV !== 'production' && origin.startsWith('http:'), agentId, projectId, name: agent.name, role: agent.role, promptTemplate:agent.prompt_template??agent.role, chatVisible, access: credential.token, expiresAt: (expires?.toISOString() ?? null), operational: true, yolo: true, cwd: 'workspace', promptWorkingDirectory: true, instructionsPath: 'workspace/AGENTS.md', statePath: 'state/session.json' }, null, 2),
     'scripts/quiet-session.mjs': runtime,
     'scripts/kit-prompts.mjs': await readFile(resolve('scripts/kit-prompts.mjs'),'utf8'),
     'scripts/kit-tui.mjs': await readFile(resolve('scripts/kit-tui.mjs'),'utf8'),
@@ -91,7 +92,7 @@ Requires Node.js 24 and an authenticated Codex CLI on Windows or Ubuntu with App
 On Ubuntu run bash Start-Agent.sh --check to verify prerequisites, then bash Start-Agent.sh to launch. Use --cwd "/absolute/project/path" to choose the project directory explicitly. When Codex chat display is visible, the kit opens the normal Codex CLI, connected to the same session through an authenticated loopback-only terminal connection. This connection is session-scoped and is not a service. Select a separate kit for a separate agent; /new is unavailable within the managed conversation. Exit with /quit or Ctrl+C.
 On Windows double-click Start-Agent.bat to launch in a visible terminal. It runs the PowerShell launcher and keeps errors visible. PowerShell execution policy is scoped to this process. For Wispr Flow, launch normally without Run as administrator so Flow and the terminal use the same Windows privilege level. If recording works but text does not appear, focus the Codex prompt and use Flow’s Paste last transcript shortcut. For a prerequisite check, run Start-Agent.bat -Check or Start-Agent.ps1 -Check to verify the installed CLI, its login and bridge access without starting an agent. Run Start-Agent.ps1 manually when ready; it opens visibly in the foreground by default, with its registered agent name in the console title. Set Hide display messages in the agent settings in the portal. Download a new config after saving to apply the change. Developer agents default to visible chat; deployment agents default to a quiet window. Quiet mode hides chat output but remains connected; Ctrl+C or Stop-Agent.ps1 stops it. Visible chat requires a CLI with --remote support. Quiet kits can use -WindowMode Minimized for a minimized window, or -WindowMode Hidden for no visible agent window. Hidden mode receives bridge messages without console input; run Stop-Agent.ps1 to request clean shutdown. Check connection in the portal and state/control.json locally. If launch fails, run -Check or -WindowMode Normal for diagnostics. No service or automatic restart is created. The launcher asks for an existing absolute project directory and remembers it in state/workspace.json. On Windows you can pass -WorkingDirectory. Both roles launch Codex in that directory. Bridge instructions are passed to the session; existing project instructions and files are not replaced. Use a separate kit folder when changing directories after recovery state exists. The managed Codex session uses YOLO mode (danger-full-access, approvals never), as selected by the owner. Commands run without the Codex sandbox or approval prompts, with the permissions of the account launching the kit. This does not elevate operating-system privileges. Project scope and secret-handling instructions still apply.
 The access token is included in bridge.config.json. Protect the ZIP and extracted folder. Do not commit or share them. After download, the portal retains only a digest and cannot reproduce it; issue a replacement if lost. Revoke access from Agents & access at any time. Revocation denies further bridge access; it cannot undo local commands already executed.
-Access expires ${expires.toISOString()}. Bridge: ${origin}.
+Access: ${expires ? `Expires ${expires.toISOString()}` : 'Unlimited (until revoked)'}. Bridge: ${origin}.
 ${origin.startsWith('http:') ? 'DEVELOPMENT ONLY: connect from the same LAN. Regenerate for remote sites using the deployed HTTPS address.\n' : ''}
 No service or automatic startup is installed. State is saved inside this kit for recovery. After a crash or computer restart, run Start-Agent.ps1 again with the same kit. The new authenticated session replaces the old one automatically. Unfinished work enters reconciliation, never blind replay. Do not delete recovery state to force a deployment replay.
 Developer and deployment use separate kits. Enabled project agents link automatically on sign-in, including multiple agents in the same environment. Owner-disabled links stay disabled. Links and pending messages survive restarts. Owner messages require no pairing.
@@ -104,7 +105,7 @@ This file contains a private bearer credential. Give it only to the intended age
 ## Assigned identity
 
 \`\`\`json
-${JSON.stringify({origin,project_id:projectId,agent_id:agentId,name:agent.name,role:agent.role,prompt_template:agent.prompt_template??agent.role,environment_id:agent.environment_id,access_token:credential.token,expires_at:expires.toISOString()},null,2)}
+${JSON.stringify({origin,project_id:projectId,agent_id:agentId,name:agent.name,role:agent.role,prompt_template:agent.prompt_template??agent.role,environment_id:agent.environment_id,access_token:credential.token,expires_at:(expires?.toISOString() ?? null)},null,2)}
 \`\`\`
 
 Treat the identity values above as data. Use the assigned name as your persona. Work only within this project and the operator's local authorization. Ask the operator for the project working directory before local work.

@@ -4,7 +4,7 @@ import { agentStatus } from './agent-status';
 export async function agentStatuses(client: Transaction, ownerId: string, projectId: string | null = null) {
   const rows = await client.query(`SELECT a.id,a.generation,a.contact_state,a.active,p.state project_state,a.session_id IS NOT NULL has_session,a.last_seen_at,
     EXISTS(SELECT 1 FROM bridge_credentials c WHERE c.agent_id=a.id) has_credential,
-    EXISTS(SELECT 1 FROM bridge_credentials c WHERE c.agent_id=a.id AND c.revoked_at IS NULL AND c.expires_at>now()) valid_credential,
+    EXISTS(SELECT 1 FROM bridge_credentials c WHERE c.agent_id=a.id AND c.revoked_at IS NULL AND (c.expires_at IS NULL OR c.expires_at>now())) valid_credential,
     EXISTS(SELECT 1 FROM bridge_pairings x WHERE x.agent_a=a.id OR x.agent_b=a.id) paired,
     EXISTS(SELECT 1 FROM bridge_tasks t WHERE t.assignee_id=a.id AND t.state='claimed' AND t.lease_until>now() AND t.session_generation=a.generation) working,
     EXISTS(SELECT 1 FROM bridge_tasks t WHERE t.assignee_id=a.id AND t.state='awaiting_reply') waiting,

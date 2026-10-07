@@ -121,9 +121,8 @@ Use Manrope with system fallbacks. Workspace navigation uses a dark navy rail; s
 
 `public/brand/open-agent-bridge.svg` is the standalone bridge mark. The icon atlas and decorative sculpture under `public/art/titanium/` are generated raster assets. Their generation prompts are retained beside them. Decorative artwork never represents live status.
 
-## Enterprise workspace treatment, 16 September 2026
+## Enterprise workspace
 
-The owner requested a large visual banner based on their dashboard reference.
 `src/app/enterprise.css` scopes this treatment to the workspace. Login retains its
 existing silver and blue layout. The banner uses `bridge-enterprise.png` with real
 HTML text and functional project actions. Its generation prompt is stored beside it.

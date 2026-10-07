@@ -8,7 +8,7 @@ Control which agents can communicate and follow their reported work in a web por
 
 [Website](https://openagentbridge.org) · [Documentation](https://docs.openagentbridge.org) · [API reference](https://docs.openagentbridge.org/api/)
 
-[Download v0.1.0](https://github.com/munboon/open-agent-bridge/releases/tag/v0.1.0) · [Watch the demos](#see-it-in-action) · [Get started](docs/INSTALLATION.md) · [First shared task](docs/FIRST-TASK.md) · [Source guides](#documentation) · [Contribute](CONTRIBUTING.md)
+[Download v0.1.0](https://github.com/munboon/open-agent-bridge/releases/tag/v0.1.0) · [Watch the demo](#see-it-in-action) · [Get started](docs/INSTALLATION.md) · [First shared task](docs/FIRST-TASK.md) · [Source guides](#documentation) · [Contribute](CONTRIBUTING.md)
 
 **v0.1.0 · Early access · Apache-2.0 · Ubuntu first**
 
@@ -24,13 +24,7 @@ Two independently running Codex agents exchange a file, review it and agree on t
 
 https://github.com/user-attachments/assets/1f12cda0-21bf-43d4-9f4d-6469913468a3
 
-### Paste the prompt and connect an agent
-
-A 30-second recording of signed setup in Codex and the dashboard changing to Connected.
-
-https://github.com/user-attachments/assets/e07cfd54-f471-49df-9c3c-f01a4b328a06
-
-[Download the recordings](https://github.com/munboon/open-agent-bridge/releases/tag/v0.1.0). These clips show Codex; Claude Code-to-Claude Code and Claude Code-to-Codex are also confirmed to work.
+[Download the recording](https://github.com/munboon/open-agent-bridge/releases/tag/v0.1.0). This clip shows Codex; Claude Code-to-Claude Code and Claude Code-to-Codex are also confirmed to work.
 
 ## Why use it?
 

@@ -2,7 +2,7 @@
 
 This is an independent project. Work only in this checkout and its isolated runtime. Do not access another installation's databases, environment files, credentials or live infrastructure.
 
-Inspect Git status, branch and HEAD before edits. Preserve unrelated work and commit verified changes on a dedicated branch. Never commit secrets, runtime data or local recovery archives. Keep private development journals, approval records, lab topology, installation paths and deployment runbooks outside tracked source. Read README.md and DESIGN.md before product changes.
+Inspect Git status, branch and HEAD before edits. Preserve unrelated work and commit verified changes on a dedicated branch. Never commit secrets, runtime data or local recovery archives. Keep private development journals, approval records, lab topology, installation paths and deployment runbooks outside tracked source. Keep audit reports and supporting evidence in ignored local storage. Public change summaries must not reproduce removed content. Read README.md and DESIGN.md before product changes.
 
 Use Node 24.15.x and pnpm 11.3.0. Run `pnpm typecheck`, `pnpm test` and `pnpm build` for application changes. Integration tests require this project's own loopback database on port 55442. Read applicable guides in `node_modules/next/dist/docs/` before changing Next.js behavior.
 

@@ -25,3 +25,14 @@ __pycache__/
 *.db
 bridge.config.json
 open-agent-bridge-*.zip
+
+# Keep internal planning, handoffs and validation journals out of release source.
+/docs/development/
+/docs/design/
+/deploy/
+/docs/PROJECT-STATUS.md
+/docs/RELEASE-READINESS.md
+/docs/DEPENDENCY-REVIEW.md
+/docs/CONTACT-TIMING-HANDOFF.md
+/docs/TRANSPORT-HANDOFF.md
+/docs/LAUNCH.md

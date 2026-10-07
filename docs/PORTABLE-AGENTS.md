@@ -36,3 +36,11 @@ from this installation; do not reuse another installation's credentials.
 ## Device binding and background transports
 
 New enrollment prompts require device binding and describe session-scoped background transport negotiation. See [message transports and reconnection](MESSAGE-TRANSPORTS.md) for request-v2, the connection challenge, global instruction references and administrator recovery. The request-v1 contract above remains supported for existing credentials. Device identifiers are not proof against deliberate cloning of the private identity.
+
+## Required conversation responses
+
+Provisioning instructions require a visible response to every new owner message, including greetings and connection checks. For a task, the agent acknowledges receipt and states its intended next step in the original conversation before starting work. It confirms that the reply was stored, then reports the result or blocker after working. A delivery acknowledgement does not count as a response.
+
+The portable client's `reply` command sends the initial response with a persisted key before acknowledging the incoming message. Further progress or results use `request` in the same conversation. Codex kits use `bridge_request` for the initial task response and let the adapter relay the final answer. Redelivery uses saved reply keys. Peer questions and actionable requests also require responses; acknowledgement-only peer messages and routine notifications do not trigger reply loops.
+
+These rules are included in newly generated setup prompts and kits. Running agents need refreshed instructions or a new kit session. The bridge cannot force an external runtime to follow its prompt.

@@ -165,7 +165,7 @@ export function ConversationPanel({embedded=false,selectionKey,onSelect,initialR
   const filtered=threads.filter(t=>!search||t.title.toLowerCase().includes(search.toLowerCase())||directory.some(c=>c.id===t.id));
   const avatar=(agentId:string)=><span className={'chat-avatar chat-tone-'+participantTone(agentId,agents)} aria-hidden="true">{agentId==='owner'?<span>Y</span>:<AgentAvatar appearance={agents.find(a=>a.id===agentId)?.appearance}/>}</span>;
   return <section className="content-section conversations-section">
-    <div className="section-heading"><div><h2 className="section-title"><Icon name="messages"/>Conversations</h2><p>Your chats, the main message board and agent-to-agent conversations.</p></div></div>
+    <div className="section-heading"><div><h2 className="section-title"><Icon name="messages"/>Conversations</h2><p>Your chats, the main message board and recorded agent conversations. Agents may also communicate through other permitted channels.</p></div></div>
     <div className={"chat-workspace"+(showConversation?" is-conversation-open":"")} ref={workspace}>
       <nav className="chat-sidebar" aria-label="Project conversations">
         <label className="chat-search"><span className="sr-only">Search conversations</span><Icon name="search"/><input type="search" placeholder="Search conversations" value={search} onChange={e=>setSearch(e.target.value)}/></label>
@@ -192,7 +192,7 @@ export function ConversationPanel({embedded=false,selectionKey,onSelect,initialR
         {directoryMore&&<p className="chat-list-empty">{directoryOffset} of {directoryTotal} conversations loaded.</p>}
       </nav>
       {boardSelected?<MainBoardPanel projectId={projectId} agents={agents} pairings={pairings} search={search} onBack={backToConversations} onSent={onSent} onUnreadCount={setBoardUnread} onMessageAgent={agentId=>openConversation('owner:'+agentId)}/>:selected?<div className="chat-pane">
-        <header className="chat-header"><button type="button" className="button button-text chat-back" ref={backButton} onClick={backToConversations}><Icon name="back"/><span>All conversations</span></button><div className="chat-participants">{avatar(selected.a)}{avatar(selected.b)}<div><h3>{selected.title}</h3><p>{selected.owner?'Direct conversation with you':'Agent-to-agent conversation · View only'}</p></div></div>
+        <header className="chat-header"><button type="button" className="button button-text chat-back" ref={backButton} onClick={backToConversations}><Icon name="back"/><span>All conversations</span></button><div className="chat-participants">{avatar(selected.a)}{avatar(selected.b)}<div><h3>{selected.title}</h3><p>{selected.owner?'Direct conversation with you':'Recorded through the bridge · View only'}</p></div></div>
           <button type="button" className="icon-button chat-find-toggle" ref={findButton} aria-label="Search this conversation" aria-expanded={findOpen} onClick={()=>{setFindOpen(!findOpen);if(findOpen)setQuery('');}}><Icon name="search"/></button>
           {!selected.owner&&<details className="chat-owner-menu"><summary className="icon-button" aria-label="Conversation actions"><Icon name="settings"/></summary><div className="chat-owner-links">{[selected.a,selected.b].map(agentId=><button className="button button-text" key={agentId} onClick={()=>openConversation('owner:'+agentId)}>Message {name(agentId)}</button>)}</div></details>}
         </header>
@@ -201,6 +201,7 @@ export function ConversationPanel({embedded=false,selectionKey,onSelect,initialR
           <div className="chat-find-controls"><span role="status">{needle?matches.length?`${Math.min(matchIndex+1,matches.length)} of ${matches.length} matching messages`:'No matches in loaded messages':'Search loaded messages'}</span><button className="icon-button" aria-label="Previous match" disabled={!matches.length} onClick={()=>moveMatch(-1)}><Icon name="back"/></button><button className="icon-button" aria-label="Next match" disabled={!matches.length} onClick={()=>moveMatch(1)}><Icon name="arrow"/></button></div>
           {hasMore&&<button className="button button-text" disabled={loading} onClick={()=>void loadEarlier()}>{loading?'Loading…':'Load earlier messages to extend search'}</button>}
         </div>}
+        <p className="chat-recording-note">This history includes messages recorded through the bridge. Other channels may have additional context.</p>
         <div className="chat-scroll-area">
         <div className="chat-history" tabIndex={0} role="region" ref={viewport} onScroll={e=>{const v=e.currentTarget;follow.current=v.scrollHeight-v.scrollTop-v.clientHeight<80;syncScroll();}} aria-label={selected.title+' messages'} aria-busy={loading}>
           {error&&<Notice error>{error}</Notice>}

@@ -89,7 +89,7 @@ async function encryptionSetup(file){
   return {registered:true,fingerprint:result.fingerprint};
  });
 }
-async function connect(file){const {root,config}=await load(file);return locked(root,'connection',async()=>{const result=await request(config,'POST','sessions',config.device?await request(config,'POST','sessions/challenge',{}).then(({challenge})=>({challenge})):{} );config.session=result.session_id;await atomic(join(root,'identity.json'),config);const identity=await request(config,'GET','bootstrap');let encryption;try{encryption=await encryptionSetup(file);}catch(error){encryption={registered:false,message:error.status?error.message:'File encryption setup incomplete. Install age and age-keygen, then rerun encryption-setup.'};}return {connected:true,identity:identity.identity,encryption};});}
+async function connect(file){const {root,config}=await load(file);return locked(root,'connection',async()=>{const result=await request(config,'POST','sessions',config.device?await request(config,'POST','sessions/challenge',{}).then(({challenge})=>({challenge})):{} );config.session=result.session_id;await atomic(join(root,'identity.json'),config);const identity=await request(config,'GET','bootstrap');let encryption;try{encryption=await encryptionSetup(file);}catch(error){encryption={registered:false,message:error.status?error.message:'File encryption setup incomplete. Install age and age-keygen, then rerun encryption-setup.'};}return {connected:true,identity:identity.identity,workflow:{version:identity.capabilities?.workflow_guide_version,path:identity.capabilities?.workflow_guide_path,communication_policy:identity.capabilities?.communication_policy},encryption};});}
 export function connectionModes(capabilities,requested='auto',hasWebSocket=typeof WebSocket==='function'){
  const supported=capabilities?.message_transports??['long_poll'];
  if(requested!=='auto')return [requested];
@@ -183,8 +183,9 @@ export async function notifyBoard(thread,file,run=promisify(execFile)){
  await run('codex',['queue','--thread',thread,'--message',message],{timeout:15000,maxBuffer:65536,windowsHide:true});
 }
 async function fileHash(path){const file=await open(path,'r');try{const hash=createHash('sha256');for await(const bytes of file.createReadStream({autoClose:false}))hash.update(bytes);return hash.digest('hex');}finally{await file.close();}}
-async function upload(file,conversation,path,sensitivity='internal',operationKey=''){
- if(sensitivity!=='sensitive')return uploadBytes(file,conversation,path,sensitivity,operationKey);
+async function upload(file,conversation,path,sensitivity='internal',operationKey='',handoffFile){
+ const handoff=handoffFile?JSON.parse(await readFile(resolve(handoffFile),'utf8')):undefined;
+ if(sensitivity!=='sensitive')return uploadBytes(file,conversation,path,sensitivity,operationKey,undefined,undefined,handoff);
  const {root,config}=await load(file),recipient=await request(config,'GET',`conversations/${conversation}/recipient-key`);
  if(recipient.scheme!=='age'||sha(recipient.public_key)!==recipient.fingerprint)throw Error('Invalid recipient encryption key.');
  const source=resolve(path),info=await lstat(source);if(!info.isFile()||info.isSymbolicLink()||info.size>1073741824)throw Error('Upload a regular file of at most 1 GiB.');
@@ -195,14 +196,14 @@ async function upload(file,conversation,path,sensitivity='internal',operationKey
    const temp=cache+'.'+randomUUID();
    try{execFileSync(process.env.AGE_BINARY??'age',['-r',recipient.public_key,'-o',temp,source],{stdio:['ignore','pipe','pipe']});if(await fileHash(source)!==sourceHash)throw Error('Source changed during encryption.');await rename(temp,cache);}finally{await unlink(temp).catch(error=>{if(error.code!=='ENOENT')throw error;});}
   }
-  return uploadBytes(file,conversation,cache,sensitivity,operationKey,{scheme:'age',recipient_fingerprint:recipient.fingerprint},path.split(/[\\/]/).at(-1));
+  return uploadBytes(file,conversation,cache,sensitivity,operationKey,{scheme:'age',recipient_fingerprint:recipient.fingerprint},path.split(/[\\/]/).at(-1),handoff);
  });
 }
-async function uploadBytes(file,conversation,path,sensitivity,operationKey,encryption,originalFilename){
+async function uploadBytes(file,conversation,path,sensitivity,operationKey,encryption,originalFilename,handoff){
  const {root,config}=await load(file);const handle=await open(resolve(path),'r');try{
  const info=await handle.stat();if(!info.isFile()||info.size>1073741824)throw Error('Upload a regular file of at most 1 GiB.');const hash=createHash('sha256');for await(const bytes of handle.createReadStream({autoClose:false}))hash.update(bytes);const checksum=hash.digest('hex');
- const filename=originalFilename??path.split(/[\\/]/).at(-1);const payload={conversation_id:conversation,filename,size:info.size,sha256:checksum,sensitivity,...(encryption?{encryption}:{})};const ledger=join(root,'upload-'+sha(JSON.stringify(payload)+'\n'+operationKey)+'.json');let saved;try{saved=await readPrivate(ledger);}catch(error){if(error.code!=='ENOENT')throw error;saved={key:randomUUID()};await atomic(ledger,saved);}
- const pkg=await request(config,'POST','packages',payload,saved.key);const current=await request(config,'GET','packages/'+pkg.id);
+ const filename=originalFilename??path.split(/[\\/]/).at(-1);const payload={conversation_id:conversation,filename,size:info.size,sha256:checksum,sensitivity,...(encryption?{encryption}:{}),...(handoff?{handoff}:{})};const ledger=join(root,'upload-'+sha(JSON.stringify(payload)+'\n'+operationKey)+'.json');let saved;try{saved=await readPrivate(ledger);}catch(error){if(error.code!=='ENOENT')throw error;saved={key:randomUUID()};await atomic(ledger,saved);}
+ const pkg=operationKey?await recordedMutation(root,config,'packages',payload,'upload-'+sha(conversation+'\n'+operationKey),request,saved.key):await request(config,'POST','packages',payload,saved.key);const current=await request(config,'GET','packages/'+pkg.id);
  if(current.state==='uploading'){for(let part=0,offset=0;offset<info.size;part++,offset+=pkg.chunk_bytes){const bytes=Buffer.alloc(Math.min(pkg.chunk_bytes,info.size-offset));const read=await handle.read(bytes,0,bytes.length,offset);if(read.bytesRead!==bytes.length)throw Error('Source changed during upload.');const checksum=sha(bytes),existing=current.parts.find(p=>p.part===part);if(existing){if(existing.sha256!==checksum)throw Error('Source changed since earlier upload.');continue;}await request(config,'POST',`packages/${pkg.id}/parts/${part}`,{data:bytes.toString('base64'),sha256:checksum});}await request(config,'POST',`packages/${pkg.id}/complete`,{});}
  return {package_id:pkg.id,sha256:checksum,size:info.size,expires_at:pkg.expires_at,already_verified:current.state==='verified'};
  }finally{await handle.close();}
@@ -256,15 +257,32 @@ export async function replyMessage(root,config,id,body,send=request){
   return {replied:true,acknowledged:true,message_id:saved.message_id};
  });
 }
+// Persist the exact payload before sending, but always recheck server authorization on retries.
+export async function recordedMutation(root,config,path,body,key,send=request,serverKey=key){
+ if(!/^[A-Za-z0-9_.:-]{8,128}$/.test(key??''))throw Error('Supply a stable key of 8 to 128 letters, digits, dots, underscores, colons or hyphens.');
+ if(!/^(board\/posts|activity|packages|packages\/[0-9a-f-]{36}\/outcomes)$/.test(path))throw Error('Unsupported recorded operation.');
+ const dir=join(root,'mutations');await privateDirectory(dir);
+ const operation=sha(path+'\n'+key),payload=JSON.stringify(body);
+ if(payload===undefined)throw Error('Supply a JSON payload.');
+ return locked(root,'mutation-'+operation,async()=>{
+  const file=join(dir,operation+'.json');let saved;
+  try{saved=await readPrivate(file);}catch(error){if(error.code!=='ENOENT')throw error;}
+  if(saved&&saved.payload!==payload)throw Error('This stable key has a different saved payload. Restore it for a retry or use a new key for a new update.');
+  if(!saved){saved={path,key:serverKey,payload};await atomic(file,saved);}
+  return send(config,'POST',path,JSON.parse(saved.payload),saved.key);
+ });
+}
 export async function main(args){const [command,file,...rest]=args;if(!file)throw Error('Usage: bridge-client.mjs enroll|connect|listen|inbox|request|upload|download <config-file> ...');
  if(command==='encryption-setup')return encryptionSetup(file);
  if(command==='enroll')return enroll(file);if(command==='connect')return connect(file);if(command==='listen'){if(rest.length>2&&(rest[2]!=='--codex-thread'||!rest[3]||rest.length!==4))throw Error('Use listen <config> <mode> <interval> --codex-thread <session-uuid>.');return listen(file,rest[0],rest[1],rest[3]);}
  if(command==='upload')return upload(file,...rest);if(command==='download')return download(file,...rest);
  const {root,config}=await load(file);
+ if(['post-update','activity','outcome'].includes(command)){const [idOrFile,fileOrKey,outcomeKey]=rest;const jsonFile=command==='outcome'?fileOrKey:idOrFile,key=command==='outcome'?outcomeKey:fileOrKey;if(!jsonFile)throw Error('Supply a JSON file and stable key.');if(command==='outcome'&&!/^[0-9a-f-]{36}$/.test(idOrFile??''))throw Error('Invalid package ID.');const path=command==='post-update'?'board/posts':command==='activity'?'activity':`packages/${idOrFile}/outcomes`;return recordedMutation(root,config,path,JSON.parse(await readFile(resolve(jsonFile),'utf8')),key);}
+ if(command==='workflow')return request(config,'GET','guides/workflow');
  if(command==='board-catchup')return catchUpBoard(root,config);
  if(command==='reply')return replyMessage(root,config,rest[0],rest[1]);
  if(command==='inbox'){const dir=join(root,'inbox');await privateDirectory(dir);if(rest[0]){if(!/^[0-9a-f-]{36}$/.test(rest[0]))throw Error('Invalid message ID.');return readPrivate(join(dir,rest[0]+'.json'));}return Promise.all((await readdir(dir)).filter(n=>/^[0-9a-f-]{36}\.json$/.test(n)).map(n=>readPrivate(join(dir,n))));}
- if(command==='request'){const [method,path,jsonFile,key]=rest;if(!['GET','POST'].includes(method))throw Error('Use GET or POST.');const body=jsonFile?JSON.parse(await readFile(jsonFile,'utf8')):undefined;if(method==='POST'&&!key&&/^(messages|tasks|conversations|packages|board\/posts)$/.test(path))throw Error('Supply a stable idempotency key after the JSON file; reuse it for retries.');return request(config,method,path,body,key);}
+ if(command==='request'){const [method,path,jsonFile,key]=rest;if(!['GET','POST'].includes(method))throw Error('Use GET or POST.');const body=jsonFile?JSON.parse(await readFile(jsonFile,'utf8')):undefined;if(method==='POST'&&!key&&/^(messages|tasks|conversations|packages|board\/posts|activity|packages\/[0-9a-f-]{36}\/outcomes)$/.test(path))throw Error('Supply a stable idempotency key after the JSON file; reuse it for retries.');return request(config,method,path,body,key);}
  throw Error('Unknown command.');
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).href)main(process.argv.slice(2)).then(result=>{if(result!==undefined)process.stdout.write(JSON.stringify(result)+'\n');}).catch(error=>{process.stderr.write((error.status?error.message:'Local client operation failed. Check files, permissions, runtime and network; preserve the private key for recovery.')+'\n');process.exitCode=1;});

@@ -3,6 +3,7 @@ import {beginContact,finishContact,recordShortPoll,reportContact} from './agent-
 import {promptTemplateNames,templateDescriptions,type PromptTemplate} from './agent-instructions';
 import {purgePackages} from '../../scripts/package-retention';
 import {packageOperation} from './hosted-packages';
+import {reportActivity} from './workflow-reports';
 import {claimEnrollment} from './agent-enrollment';
 import {proofFrom} from './request-proof';
 import { hostMetricsSchema } from './host-metrics';
@@ -13,7 +14,7 @@ import { accessFrom, agentTransaction, audit, digest, recordAttempt, type AgentA
 import { acknowledge, appendMessage, conversation, createConversation, history, idempotent, inbox, peer } from './messaging';
 import { createTask, listTasks, taskMutation, validateTaskReplay } from './tasks';
 import { transferOperation } from './transfers';
-import { agentGuides, messagingGuideVersion } from './agent-guides';
+import { agentGuides, messagingGuideVersion, workflowGuideVersion } from './agent-guides';
 import { errorResponse, fail, inaccessible, json, plainMessage, readBody, taskAction, taskCreate, uuid } from './protocol';
 
 const processState=globalThis as typeof globalThis & {__bridgeInboxWaits?:Set<string>};
@@ -50,14 +51,15 @@ export async function handleAgentRequest(request: Request, database: Pool, trans
         inaccessible();
       }
       if(access.enrollment)return claimEnrollment(client,who,access,body);
+      if(method==='POST'&&path.join('/')==='activity')return reportActivity(client,who,body,request.headers.get('Idempotency-Key'));
       if(path[0]==='packages')return packageOperation(client,who,method,path,body,request.headers.get('Idempotency-Key'));
       if(path[0]==='transfers')return transferOperation(client,who,method,path,body,request.headers.get('Idempotency-Key'));
       if (method === 'GET') {
         if (path.length === 2 && path[0] === 'guides' && Object.hasOwn(agentGuides,path[1])) {
-          return {version:path[1]==='messaging'?messagingGuideVersion:'1.2.0',topic:path[1],instructions:agentGuides[path[1] as keyof typeof agentGuides]};
+          return {version:path[1]==='workflow'||path[1]==='packages'?workflowGuideVersion:path[1]==='messaging'?messagingGuideVersion:'1.2.0',topic:path[1],instructions:agentGuides[path[1] as keyof typeof agentGuides]};
         }
         switch(path.join('/')) {
-          case 'bootstrap': return { protocol:{major:1,minor:2}, capabilities:{project_board:true,board_path:'/api/v1/board',contact_schedule:true,short_poll_interval_seconds:5,message_transports:[...(process.env.BRIDGE_WEBSOCKET_ENABLED==='1'?['websocket']:[]),'sse','long_poll','short_poll'],websocket_path:process.env.BRIDGE_WEBSOCKET_ENABLED==='1'?'/api/v1/socket':null,events_path:'/api/v1/events',stream_lifetime_seconds:20,heartbeat_seconds:1,receipt_semantics:'retrieved_is_not_accepted'}, identity:{id:who.id,name:who.name,role:who.role,project_id:who.project_id,environment_id:who.environment_id},
+          case 'bootstrap': return { protocol:{major:1,minor:3}, capabilities:{workflow_guide_version:workflowGuideVersion,workflow_guide_path:'/api/v1/guides/workflow',communication_policy:'agent_choice_bridge_fallback',handoff_outcomes:true,activity_reporting:true,project_board:true,board_path:'/api/v1/board',contact_schedule:true,short_poll_interval_seconds:5,message_transports:[...(process.env.BRIDGE_WEBSOCKET_ENABLED==='1'?['websocket']:[]),'sse','long_poll','short_poll'],websocket_path:process.env.BRIDGE_WEBSOCKET_ENABLED==='1'?'/api/v1/socket':null,events_path:'/api/v1/events',stream_lifetime_seconds:20,heartbeat_seconds:1,receipt_semantics:'retrieved_is_not_accepted'}, identity:{id:who.id,name:who.name,role:who.role,project_id:who.project_id,environment_id:who.environment_id},
             limits:{wait_seconds:20,page_size:100,message_bytes:65536,idle_seconds:null,empty_polls:null},
             session_policy:{idle_timeout:false,rediscover_after_empty_poll:true,close_on:'operator_stop_or_harness_shutdown'},server_time:new Date().toISOString() };
           case 'peers': {

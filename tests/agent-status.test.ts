@@ -23,4 +23,16 @@ describe('agent monitoring truth', () => {
     expect(agentStatus({...base,project_state:'paused'},now).connection).toBe('connected');
     expect(agentStatus({...base,project_state:'archived'},now).connection).toBe('blocked');
   });
+  it('uses fresh owner-only reports without allowing heartbeats or new sessions to imply progress',()=>{
+    const activity_report={state:'working' as const,title:'Reviewing the handoff',summary:'Running authorized checks.',communication:'native' as const,generation:4,reported_at:now.toISOString()};
+    const current={...base,generation:4,activity_report};
+    expect(agentStatus(current,now)).toMatchObject({work:'working',activity:{stale:false,communication:'native'}});
+    expect(agentStatus({...current,recovery:true},now).work).toBe('attention');
+    expect(agentStatus({...current,waiting:true},now).work).toBe('waiting');
+    expect(agentStatus({...current,activity_report:{...activity_report,state:'blocked'}},now).work).toBe('attention');
+    expect(agentStatus({...current,activity_report:{...activity_report,state:'completed'}},now).work).toBe('idle');
+    for(const modified of [{generation:5},{last_seen_at:new Date(now.getTime()-75_001)},{activity_report:{...activity_report,reported_at:new Date(now.getTime()-30*60_000-1).toISOString()}},{activity_report:{...activity_report,reported_at:new Date(now.getTime()+1000).toISOString()}}]){
+      expect(agentStatus({...current,...modified},now)).toMatchObject({work:'unknown',activity:{stale:true}});
+    }
+  });
 });

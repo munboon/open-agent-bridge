@@ -7,9 +7,10 @@ import type {Transaction} from './db';
 import {audit,type AgentIdentity} from './agent-auth';
 import {appendMessage,conversation,idempotent} from './messaging';
 import {fail,inaccessible,uuid} from './protocol';
+import {handoffInput,outcomeInput} from './workflow-reports';
 export const PACKAGE_CHUNK_BYTES=262144;
 const hash=z.string().regex(/^[a-f0-9]{64}$/);
-const input=z.strictObject({conversation_id:uuid,filename:z.string().min(1).max(120).regex(/^[A-Za-z0-9][A-Za-z0-9_.-]*$/).refine(v=>!v.includes('..')&&!v.endsWith('.')&&!/^(con|prn|aux|nul|com[0-9]|lpt[0-9])(?:\.|$)/i.test(v)),size:z.number().int().min(0).max(1024**3),sha256:hash,sensitivity:z.enum(['synthetic','internal','sensitive']),encryption:z.strictObject({scheme:z.literal('age'),recipient_fingerprint:hash}).optional()});
+export const packageInput=z.strictObject({conversation_id:uuid,filename:z.string().min(1).max(120).regex(/^[A-Za-z0-9][A-Za-z0-9_.-]*$/).refine(v=>!v.includes('..')&&!v.endsWith('.')&&!/^(con|prn|aux|nul|com[0-9]|lpt[0-9])(?:\.|$)/i.test(v)),size:z.number().int().min(0).max(1024**3),sha256:hash,sensitivity:z.enum(['synthetic','internal','sensitive']),encryption:z.strictObject({scheme:z.literal('age'),recipient_fingerprint:hash}).optional(),handoff:handoffInput.optional()});
 export async function packageRoot(){
  const configured=process.env.BRIDGE_PACKAGE_ROOT??(process.env.NODE_ENV==='production'?'/var/lib/oab/packages':'.local/packages');
  const root=resolve(/*turbopackIgnore: true*/ configured);await mkdir(root,{recursive:true,mode:0o700});
@@ -21,15 +22,15 @@ export async function readChunk(id:string,part:number,sha:string){
  const handle=await open(join(await packageRoot(),chunkName(id,part,sha)),constants.O_RDONLY|constants.O_NOFOLLOW);
  try{const stat=await handle.stat();if(!stat.isFile()||stat.size>PACKAGE_CHUNK_BYTES)fail(503,'PACKAGE_STORAGE','Stored part is invalid.');return await handle.readFile();}finally{await handle.close();}
 }
-async function get(client:Transaction,who:AgentIdentity,id:string){
+async function get(client:Transaction,who:AgentIdentity,id:string,retained=false){
  const found=await client.query('SELECT * FROM bridge_packages WHERE id=$1 AND project_id=$2 AND ($3=sender_id OR $3=recipient_id) FOR UPDATE',[id,who.project_id,who.id]);
  if(!found.rowCount)inaccessible();const row=found.rows[0];await conversation(client,who,row.conversation_id);
- if(new Date(row.expires_at).getTime()<=Date.now()||row.state==='expired')fail(410,'PACKAGE_EXPIRED','This package has expired. Ask the sender to upload it again.');
- if(row.state==='cancelled')fail(410,'PACKAGE_CANCELLED','This package was cancelled.');return row;
+ if(!retained&&(new Date(row.expires_at).getTime()<=Date.now()||row.state==='expired'))fail(410,'PACKAGE_EXPIRED','This package has expired. Ask the sender to upload it again.');
+ if(!retained&&row.state==='cancelled')fail(410,'PACKAGE_CANCELLED','This package was cancelled.');return row;
 }
 export async function packageOperation(client:Transaction,who:AgentIdentity,method:string,path:string[],body:unknown,key:string|null){
  if(method==='POST'&&path.length===1){
-  const data=input.parse(body);if(who.project_state!=='active')fail(409,'PROJECT_PAUSED','New packages are paused.');
+  const data=packageInput.parse(body);if(who.project_state!=='active')fail(409,'PROJECT_PAUSED','New packages are paused.');
   const convo=await conversation(client,who,data.conversation_id);const recipient=convo.agent_a===who.id?convo.agent_b:convo.agent_a;
   if(data.sensitivity==='sensitive'&&!data.encryption)fail(422,'ENCRYPTION_REQUIRED','Encrypt sensitive packages for the recipient before uploading.');
   if(data.encryption){const trusted=await client.query('SELECT fingerprint FROM bridge_recipient_keys WHERE agent_id=$1',[recipient]);if(trusted.rows[0]?.fingerprint!==data.encryption.recipient_fingerprint)fail(422,'RECIPIENT_KEY_MISMATCH','Use the recipient encryption key registered with the bridge.');}
@@ -38,12 +39,34 @@ export async function packageOperation(client:Transaction,who:AgentIdentity,meth
    await client.query('SELECT pg_advisory_xact_lock(71349026)');
    const totals=(await client.query("SELECT COALESCE(sum(size),0) AS total,COALESCE(sum(size) FILTER(WHERE project_id=$1),0) AS project,count(*) FILTER(WHERE project_id=$1) AS count FROM bridge_packages WHERE purged_at IS NULL",[who.project_id])).rows[0];
    if(Number(totals.total)+data.size>2*1024**3||Number(totals.project)+data.size>2*1024**3||Number(totals.count)>=100)fail(409,'PACKAGE_QUOTA','Temporary package storage is full. Cancel unused packages or wait for expiry.');
-   const row=(await client.query('INSERT INTO bridge_packages(id,project_id,conversation_id,sender_id,recipient_id,filename,size,sha256,sensitivity,encryption) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *',[randomUUID(),who.project_id,convo.id,who.id,recipient,data.filename,data.size,data.sha256,data.sensitivity,data.encryption??null])).rows[0];
+   const row=(await client.query('INSERT INTO bridge_packages(id,project_id,conversation_id,sender_id,recipient_id,filename,size,sha256,sensitivity,encryption,handoff) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *',[randomUUID(),who.project_id,convo.id,who.id,recipient,data.filename,data.size,data.sha256,data.sensitivity,data.encryption??null,data.handoff??null])).rows[0];
    await audit(client,who,'package.create',row.id);return {...row,chunk_bytes:PACKAGE_CHUNK_BYTES};
   },async row=>{await get(client,who,row.id);});
  }
- if(path.length<2)inaccessible();const id=uuid.parse(path[1]);const row=await get(client,who,id);
- if(method==='GET'&&path.length===2)return {...row,chunk_bytes:PACKAGE_CHUNK_BYTES,parts:(await client.query('SELECT part,size,sha256 FROM bridge_package_chunks WHERE package_id=$1 ORDER BY part',[id])).rows};
+ if(path.length<2)inaccessible();const id=uuid.parse(path[1]);
+ const reporting=method==='POST'&&path.length===3&&path[2]==='outcomes';
+ const metadata=method==='GET'&&path.length===2;
+ const row=await get(client,who,id,reporting||metadata);
+ if(metadata){
+  if(row.state!=='verified'&&(new Date(row.expires_at).getTime()<=Date.now()||row.state==='expired'))fail(410,'PACKAGE_EXPIRED','This package has expired. Ask the sender to upload it again.');
+  if(row.state==='cancelled')fail(410,'PACKAGE_CANCELLED','This package was cancelled.');
+  const outcomes=(await client.query('SELECT * FROM bridge_package_outcomes WHERE package_id=$1 ORDER BY created_at DESC,id DESC LIMIT 20',[id])).rows;
+  return {...row,latest_outcome:outcomes[0]??null,outcomes,chunk_bytes:PACKAGE_CHUNK_BYTES,parts:(await client.query('SELECT part,size,sha256 FROM bridge_package_chunks WHERE package_id=$1 ORDER BY part',[id])).rows};
+ }
+ if(reporting){
+  if(row.recipient_id!==who.id)inaccessible();
+  const data=outcomeInput.parse(body);
+  if(['validated','applied','completed'].includes(data.status)&&row.state!=='verified')fail(409,'PACKAGE_UNVERIFIED','Verify file integrity before reporting validation, application or completion.');
+  if(data.status==='accepted'&&(!['ready','verified'].includes(row.state)||(row.state!=='verified'&&new Date(row.expires_at).getTime()<=Date.now())))fail(409,'PACKAGE_NOT_READY','Accept the handoff after the sender completes the upload and before its download expires.');
+  return idempotent(client,who.id,'package-outcome:'+id,key,data,async()=>{
+   const count=(await client.query('SELECT count(*) FROM bridge_package_outcomes WHERE package_id=$1',[id])).rows[0].count;
+   if(Number(count)>=200)fail(409,'OUTCOME_LIMIT','This handoff has reached its outcome history limit.');
+   const outcome=(await client.query('INSERT INTO bridge_package_outcomes(id,package_id,reporter_id,status,evidence) VALUES($1,$2,$3,$4,$5) RETURNING *',[randomUUID(),id,who.id,data.status,data.evidence])).rows[0];
+   await appendMessage(client,who,{conversation_id:row.conversation_id,recipient_agent_id:row.sender_id,type:'package_outcome',body:`Recipient reports ${data.status} for ${row.filename}, package ${id}.\n${data.evidence}`,resource_id:id});
+   await audit(client,who,'package.outcome',id);
+   return {outcome};
+  });
+ }
  if(path.length===4&&path[2]==='parts'){
   const part=z.coerce.number().int().min(0).max(4095).parse(path[3]);
   if(method==='POST'){

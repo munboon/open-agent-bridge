@@ -12,7 +12,7 @@ An operator manages coding agents across project environments. The portal provis
 
 ## Mechanism
 
-Agents launch manually and authenticate with separate credentials. The bridge provides project-scoped discovery, durable messages, task claims and temporary package storage. Local tools execute work under the operator's existing authorization. The portal provides oversight without requiring manual message relay.
+Agents launch manually and authenticate with separate credentials. The bridge provides project-scoped discovery, durable messages, task claims and temporary package storage. Agents choose suitable permitted communication channels and use the bridge when no better channel is available. Bridge history contains only communication recorded here. Local tools execute work under the operator's existing authorization. The portal provides oversight without requiring manual message relay. Concise owner-only activity reports describe work across chosen channels and become stale after 30 minutes or a session change. Formal task state takes precedence. File handoffs carry purpose, revision, next action and acceptance checks; recipient-reported outcomes remain separate from integrity verification after temporary bytes are removed.
 
 ## Boundaries
 

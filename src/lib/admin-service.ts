@@ -145,7 +145,11 @@ export async function adminOperation(database: Pool,owner: Owner,method: string,
       const transfers=await client.query(`SELECT t.*,COALESCE((SELECT jsonb_agg(jsonb_build_object('id',o.id,'origin',o.origin,'expires_at',o.expires_at,'revoked_at',o.revoked_at,'cleanup_state',o.cleanup_state) ORDER BY o.created_at,o.id) FROM bridge_offers o WHERE o.transfer_id=t.id),'[]'::jsonb) AS offers,
         COALESCE((SELECT jsonb_agg(to_jsonb(r)) FROM bridge_receipts r WHERE r.transfer_id=t.id),'[]'::jsonb) AS receipts
         FROM bridge_transfers t WHERE project_id=$1 ORDER BY created_at DESC LIMIT 100`,[id]);
-      const packages=await client.query("SELECT id,filename,size,sha256,sender_id,recipient_id,CASE WHEN expires_at<=now() THEN 'expired' ELSE state END AS state,expires_at,verified_at,purged_at,created_at FROM bridge_packages WHERE project_id=$1 ORDER BY created_at DESC LIMIT 100",[id]);
+      const packages=await client.query(`SELECT p.id,p.filename,p.size,p.sha256,p.sender_id,p.recipient_id,p.handoff,
+        CASE WHEN p.expires_at<=now() AND p.state IN ('uploading','ready') THEN 'expired' ELSE p.state END AS state,
+        p.expires_at,p.verified_at,p.purged_at,p.created_at,
+        (SELECT to_jsonb(o) FROM bridge_package_outcomes o WHERE o.package_id=p.id ORDER BY o.created_at DESC,o.id DESC LIMIT 1) latest_outcome
+        FROM bridge_packages p WHERE p.project_id=$1 ORDER BY p.created_at DESC LIMIT 100`,[id]);
       const statuses=await agentStatuses(client,owner.id,id);
       return {project:await projectFor(client,owner,id),environments:environments.rows,agents:agents.rows.map(agent=>({...agent,status:statuses.get(agent.id)})),credentials:credentials.rows,
         conversations:conversations.rows,tasks:tasks.rows,messages:messages.rows,audit:events.rows,pairings:pairings.rows,transfers:transfers.rows,packages:packages.rows};

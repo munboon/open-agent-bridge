@@ -22,7 +22,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('portable enrollment and bridge 
  async function admin(path:string[],body:unknown){return adminOperation(db,owner,'POST',path,body);}
  async function call(config:any,path:string,body?:unknown,overrides:Record<string,string>={}){
   if(path==='sessions'&&config.device&&body&&!(body as any).challenge){const c=await call(config,'sessions/challenge',{});body={...(body as object),challenge:c.data.challenge};}
-  const method=body===undefined?'GET':'POST',raw=body===undefined?'':JSON.stringify(body),key=randomUUID();
+  const method=body===undefined?'GET':'POST',raw=body===undefined?'':JSON.stringify(body),key=overrides['Idempotency-Key']??randomUUID();
   const headers={...signedHeaders(config,method,'/api/v1/'+path,raw,key),...overrides};
   const response=await handleAgentRequest(new Request('http://127.0.0.1/api/v1/'+path,{method,headers,body:body===undefined?undefined:raw}),db);return {status:response.status,data:await response.json()};
  }
@@ -162,6 +162,61 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('portable enrollment and bridge 
    expect((await call(sender,`packages/${id}`)).data.state).toBe('verified');
   }
  });
+ it('records recipient work separately from integrity and retains outcomes under current permissions',async()=>{
+  const sender=await agent('Handoff sender'),recipient=await agent('Handoff recipient'),observer=await agent('Handoff observer');
+  await claim(sender);await claim(recipient);await claim(observer);
+  const conversation=(await call(sender,'conversations',{recipient_agent_id:recipient.agentId})).data.id;
+  const handoff={purpose:'Review a synthetic empty artifact.',revision:'fixture-v1',next_action:'Run the permitted checks and report the result.',acceptance_checks:['Verify the checksum','Report the observed result']};
+  const payload={conversation_id:conversation,filename:'fixture.txt',size:0,sha256:sha(Buffer.alloc(0)),sensitivity:'synthetic',handoff};
+  expect((await call(sender,'packages',{...payload,handoff:{...handoff,secret:'not an allowed field'}})).status).toBe(422);
+  const created=await call(sender,'packages',payload);expect(created.status).toBe(200);const id=created.data.id;
+  const outcomePath=`packages/${id}/outcomes`,outcome={status:'completed',evidence:'Synthetic checks passed; no local deployment was performed.'};
+  expect((await call(recipient,outcomePath,outcome)).status).toBe(409);
+  await call(sender,`packages/${id}/complete`,{});
+  expect((await call(recipient,outcomePath,{status:'accepted',evidence:'I will run the authorized checks.'})).status).toBe(200);
+  expect((await call(sender,outcomePath,outcome)).status).toBe(404);
+  expect((await call(observer,outcomePath,outcome)).status).toBe(404);
+  expect((await call(foreign,outcomePath,outcome)).status).toBe(404);
+  expect((await call(recipient,outcomePath,outcome)).status).toBe(409);
+  expect((await call(recipient,`packages/${id}/receipt`,{size:0,sha256:payload.sha256})).status).toBe(200);
+  await db.query("UPDATE bridge_packages SET expires_at=now()-interval '1 day' WHERE id=$1",[id]);
+  const headers={'Idempotency-Key':'test-outcome-11111111'};
+  const first=await call(recipient,outcomePath,outcome,headers);expect(first.status).toBe(200);
+  expect((await call(recipient,outcomePath,outcome,headers)).data).toEqual(first.data);
+  expect((await call(recipient,outcomePath,{...outcome,evidence:'Changed evidence'},headers)).status).toBe(409);
+  expect((await call({...recipient,session:randomUUID()},outcomePath,outcome,headers)).status).toBe(409);
+  const metadata=(await call(sender,`packages/${id}`)).data;
+  expect(metadata).toMatchObject({state:'verified',handoff,latest_outcome:{status:'completed'},outcomes:expect.arrayContaining([expect.objectContaining({status:'accepted'})])});
+  expect((await db.query("SELECT count(*) FROM bridge_messages WHERE resource_id=$1 AND type='package_outcome'",[id])).rows[0].count).toBe('2');
+  const snapshot:any=await adminOperation(db,owner,'GET',['projects',project],null);
+  expect(snapshot.packages.find((p:any)=>p.id===id)).toMatchObject({state:'verified',handoff,latest_outcome:{status:'completed'}});
+  await admin(['projects',project,'pairings'],{agent_a:sender.agentId,agent_b:recipient.agentId,enabled:false});
+  expect((await call(recipient,outcomePath,outcome,headers)).status).toBe(404);
+  expect((await call(sender,`packages/${id}`)).status).toBe(404);
+  await admin(['projects',project,'pairings'],{agent_a:sender.agentId,agent_b:recipient.agentId,enabled:true});
+  expect((await call(recipient,outcomePath,outcome,headers)).data).toEqual(first.data);
+  expect((await db.query('SELECT count(*) FROM bridge_board_posts WHERE project_id=$1',[project])).rows[0].count).toBe('0');
+ });
+ it('keeps activity owner-only and does not refresh progress on contact or replay',async()=>{
+  const reporter=await agent('Activity reporter');await claim(reporter);
+  const payload={state:'working',title:'Synthetic native coordination',summary:'Reviewing an authorized fixture.',communication:'native'};
+  const key={'Idempotency-Key':'activity-report-0001'};
+  const first=await call(reporter,'activity',payload,key);expect(first.status).toBe(200);
+  expect((await call(reporter,'activity',payload,key)).data).toEqual(first.data);
+  expect((await call(reporter,'activity',{...payload,agent_id:a.agentId})).status).toBe(422);
+  expect((await call({...reporter,session:randomUUID()},'activity',payload)).status).toBe(409);
+  await call(reporter,'bootstrap');
+  const snapshot:any=await adminOperation(db,owner,'GET',['projects',project],null);
+  expect(snapshot.agents.find((a:any)=>a.id===reporter.agentId).status).toMatchObject({work:'working',activity:{...payload,stale:false,reported_at:first.data.activity.reported_at}});
+  expect(JSON.stringify((await call(a,'peers')).data)).not.toContain(payload.title);
+  expect(JSON.stringify((await call(a,'bootstrap')).data)).not.toContain(payload.title);
+  await db.query("UPDATE bridge_agents SET activity_report=jsonb_set(activity_report,'{reported_at}',to_jsonb((now()-interval '31 minutes')::text)) WHERE id=$1",[reporter.agentId]);
+  await call(reporter,'inbox?wait_seconds=0');
+  const stale:any=await adminOperation(db,owner,'GET',['projects',project],null);
+  expect(stale.agents.find((a:any)=>a.id===reporter.agentId).status).toMatchObject({work:'unknown',activity:{stale:true}});
+  expect((await call(reporter,'guides/workflow')).data.instructions).toContain('Choose the best available communication channel');
+  expect((await call(reporter,'bootstrap')).data.capabilities).toMatchObject({communication_policy:'agent_choice_bridge_fallback',handoff_outcomes:true,activity_reporting:true});
+ });
  it('enforces pairing, sensitive encryption, size limits and expiry cleanup',async()=>{
   const bytes=Buffer.from('abc'),payload={conversation_id:convo,filename:'safe.bin',size:3,sha256:sha(bytes),sensitivity:'synthetic'};
   expect((await call(a,'packages',{...payload,sensitivity:'sensitive'})).status).toBe(422);
@@ -224,7 +279,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('portable enrollment and bridge 
    expect(first.registered).toBe(true);expect(await clientMain(['encryption-setup',configs[1]])).toEqual(first);
    expect(Object.keys(first).sort()).toEqual(['fingerprint','registered']);
 
-   const bytes=randomBytes(300000),source=join(local,'parcel.bin'),output=join(local,'received.bin');await writeFile(source,bytes);const uploaded=await clientMain(['upload',configs[0],conversation.id,source,'synthetic']);
+   const bytes=randomBytes(300000),source=join(local,'parcel.bin'),output=join(local,'received.bin'),handoffFile=join(local,'handoff.json');const handoff={purpose:'Review the synthetic parcel.',next_action:'Validate the received bytes.',revision:'fixture-v1',acceptance_checks:['Check the checksum']};await writeFile(handoffFile,JSON.stringify(handoff));await writeFile(source,bytes);const uploaded=await clientMain(['upload',configs[0],conversation.id,source,'synthetic','parcel-fixture',handoffFile]);expect((await clientMain(['request',configs[1],'GET','packages/'+uploaded.package_id])).handoff).toEqual(handoff);
    listener=spawn(process.execPath,['scripts/bridge-client.mjs','listen',configs[1],mode],{stdio:['ignore','pipe','pipe']});
    await new Promise<void>((resolve,reject)=>{const timeout=setTimeout(()=>reject(Error('Listener did not receive parcel notification')),5000);listener!.stdout!.on('data',chunk=>{if(String(chunk).includes('Bridge message stored:')){clearTimeout(timeout);resolve();}});listener!.once('exit',()=>{clearTimeout(timeout);reject(Error('Listener exited early'));});});
    const observed=(await db.query('SELECT contact_state FROM bridge_agents WHERE id=$1',[recipient.agentId])).rows[0].contact_state;
@@ -233,6 +288,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('portable enrollment and bridge 
    const notification=inbox.find((m:any)=>m.type==='package_ready');expect((await clientMain(['inbox',configs[1],notification.id])).id).toBe(notification.id);
    const reply=await clientMain(['reply',configs[1],notification.id,'Received the package notice.']);expect(reply.acknowledged).toBe(true);expect(await clientMain(['reply',configs[1],notification.id,'Received the package notice.'])).toEqual(reply);
    const result=await clientMain(['download',configs[1],uploaded.package_id,output]);expect(result.verified).toBe(true);expect(await readFile(output)).toEqual(bytes);expect((await readdir(root)).some(n=>n.startsWith(uploaded.package_id))).toBe(false);
+   const outcomeFile=join(local,'outcome.json');await writeFile(outcomeFile,JSON.stringify({status:'validated',evidence:'Synthetic checksum checked; no execution.'}));const reported=await clientMain(['outcome',configs[1],uploaded.package_id,outcomeFile,'recipient-validation-0001']);expect((await clientMain(['outcome',configs[1],uploaded.package_id,outcomeFile,'recipient-validation-0001'])).outcome.id).toBe(reported.outcome.id);expect((await clientMain(['request',configs[0],'GET','packages/'+uploaded.package_id])).latest_outcome.status).toBe('validated');const updateFile=join(local,'update.json');await writeFile(updateFile,JSON.stringify({kind:'update',body:'Synthetic file checked.'}));expect((await clientMain(['post-update',configs[1],updateFile,'board-fixture-0001'])).id).toBeTruthy();await writeFile(updateFile,JSON.stringify({state:'completed',title:'Synthetic handoff',summary:'Fixture verified.',communication:'mixed'}));expect((await clientMain(['activity',configs[1],updateFile,'activity-fixture-0001'])).activity.state).toBe('completed');
    const encrypted=await clientMain(['upload',configs[0],conversation.id,source,'sensitive','encrypted-test']);
    expect((await clientMain(['upload',configs[0],conversation.id,source,'sensitive','encrypted-test'])).package_id).toBe(encrypted.package_id);
    const metadata=await clientMain(['request',configs[1],'GET','packages/'+encrypted.package_id]);expect(metadata.encryption.scheme).toBe('age');expect(metadata.sha256).not.toBe(sha(bytes));

@@ -1,3 +1,4 @@
+import { accessDays } from './access-duration';
 import {contactScheduleSchema} from './agent-contact';
 import {promptTemplateSchema,workInstructionsSchema} from './agent-template-schema';
 import {projectSetupSchema} from './project-kit';
@@ -13,15 +14,15 @@ const schemas:Record<string,z.ZodType>={Confirm:z.strictObject({confirm:z.litera
   AgentInput:z.strictObject({name:z.string().trim().max(120).optional(),role:z.enum(['development','deployment']).optional(),prompt_template:promptTemplateSchema.optional(),work_instructions:workInstructionsSchema.nullable().optional(),environment_id:uuid}),
   BulkPairingInput:z.strictObject({enabled:z.boolean(),agent_id:uuid.optional(),expected_agent_ids:z.array(uuid).max(1000)}),
   PairingInput:z.strictObject({agent_a:uuid,agent_b:uuid,enabled:z.boolean().optional()}),
-  EnrollmentInput:z.strictObject({expires_days:z.number().int().min(1).max(90).optional(),replace:z.boolean().optional()}),
+  EnrollmentInput:z.strictObject({expires_days:accessDays.optional(),replace:z.boolean().optional()}),
   EnrollmentClaim:z.strictObject({public_key:z.string().max(512)}),
   PackageInput:z.strictObject({conversation_id:uuid,filename:z.string().max(120),size:z.number().int().min(0).max(1073741824),sha256:z.string().regex(/^[a-f0-9]{64}$/),sensitivity:z.enum(['synthetic','internal','sensitive']),encryption:z.object({scheme:z.literal('age'),recipient_fingerprint:z.string()}).optional()}),
   PackagePart:z.strictObject({data:z.string().max(349528),sha256:z.string().regex(/^[a-f0-9]{64}$/)}),
   PackageReceipt:z.strictObject({size:z.number().int().min(0),sha256:z.string().regex(/^[a-f0-9]{64}$/)}),
-  KitInput:z.strictObject({hide_messages:z.boolean().optional(),format:z.enum(["codex","third-party"]).default("codex"),expires_days:z.number().int().min(1).max(90).optional(),rotate:z.boolean().optional()}),
-  CredentialInput:z.strictObject({expires_days:z.number().int().min(1).max(90).optional(),rotate:z.boolean().optional(),overlap_seconds:z.number().int().min(0).max(3600).optional()}),
+  KitInput:z.strictObject({hide_messages:z.boolean().optional(),format:z.enum(["codex","third-party"]).default("codex"),expires_days:accessDays.optional(),rotate:z.boolean().optional()}),
+  CredentialInput:z.strictObject({expires_days:accessDays.optional(),rotate:z.boolean().optional(),overlap_seconds:z.number().int().min(0).max(3600).optional()}),
   ProjectStateInput:z.strictObject({state:z.enum(['active','paused','archived'])}),
-  ExtendValidityInput:z.strictObject({days:z.number().int().min(1).max(90)}),
+  ExtendValidityInput:z.strictObject({days:accessDays}),
   AgentInstructionPreview:z.object({name:z.string(),chat_visible:z.boolean(),prompt_template:promptTemplateSchema,templates:z.array(z.object({id:z.string(),name:z.string(),instructions:z.string()})),instructions:z.string(),work_instructions:z.string(),default_instructions:z.string(),customized:z.boolean(),revision:z.number().int(),runtime:z.string(),startup:z.string()}),
   AgentInstructionInput:z.object({name:label.optional(),chat_visible:z.boolean().optional(),prompt_template:promptTemplateSchema,work_instructions:z.string().min(1).max(16000).nullable(),expected_revision:z.number().int().nonnegative()}),
   AgentNameInput:z.strictObject({name:label}),
@@ -48,12 +49,14 @@ Object.assign(schemas,{
   Project:project,ProjectList:z.object({projects:z.array(project.extend({agents:z.array(z.object({id:uuid,name:z.string(),role:z.enum(['development','deployment']),active:z.boolean(),environment_id:uuid,environment_name:z.string(),status:agentStatusSchema}))}))}),Environment:environment,AgentCreated:agentCreated,
   RecipientKey:recipientKey,Message:message,Conversation:conversation,Task:task,
   PairingResult:z.object({paired:z.boolean()}),RevokeResult:z.object({revoked:z.literal(true)}),
-  CredentialIssued:z.object({id:uuid,token:z.string().describe('Plaintext credential returned only by this issue operation. Store privately; never log.'),expires_at:timestamp,shown_once:z.literal(true)}),
+  EnrollmentIssued:z.object({enrollment_id:uuid,prompt:z.string().describe('Private single-use setup prompt; never log.'),expires_at:timestamp.describe('Setup code deadline, always 30 minutes after issuance.'),access_expires_at:timestamp.nullable().describe('Agent access expiry; null means unlimited until revoked.')}),
+  ExtendValidityResult:z.object({days:accessDays,agents_extended:z.number().int(),credentials_extended:z.number().int(),agents_skipped:z.number().int()}),
+  CredentialIssued:z.object({id:uuid,token:z.string().describe('Plaintext credential returned only by this issue operation. Store privately; never log.'),expires_at:timestamp.nullable(),shown_once:z.literal(true)}),
   TakeoverIssued:z.object({authorized:z.literal(true),takeover_token:z.string().describe('Single-use replacement session grant; provision privately to the replacement agent.'),shown_once:z.literal(true),instruction:z.string()}),
   OwnerCancelResult:z.object({cancel_requested:z.literal(true),notifications:z.array(message)}),
   MessagePage:z.object({messages:z.array(message).max(100),has_more:z.boolean(),next_sequence:z.number().int().nonnegative(),retention_gap:z.object({removed_through_sequence:z.number().int().nonnegative()}).nullable()}),
   ProjectSnapshot:z.object({project,environments:z.array(environment),agents:z.array(agentCreated.extend({active:z.boolean(),generation:z.number().int(),last_seen_at:timestamp.nullable(),has_session:z.boolean(),host_metrics:hostMetricsSchema.nullable(),host_metrics_at:timestamp.nullable(),status:agentStatusSchema,recipient_key:recipientKey.nullable()})),
-    credentials:z.array(z.object({id:uuid,agent_id:uuid,expires_at:timestamp,revoked_at:timestamp.nullable(),created_at:timestamp,download_pending:z.boolean()})),
+    credentials:z.array(z.object({id:uuid,agent_id:uuid,expires_at:timestamp.nullable(),revoked_at:timestamp.nullable(),created_at:timestamp,download_pending:z.boolean()})),
     conversations:z.array(conversation).max(100),tasks:z.array(task).max(100),messages:z.array(message).max(100),
     audit:z.array(z.object({id:sequence,actor_id:z.string(),action:z.string(),resource_id:z.string().nullable(),created_at:timestamp})).max(100),
     pairings:z.array(z.object({agent_a:uuid,agent_b:uuid,environment_id:uuid})),
@@ -106,7 +109,7 @@ route('post','/api/v1/packages/{id}/complete','Verify the complete package and n
 route('post','/api/v1/packages/{id}/receipt','Recipient confirms measured hash and size; close download access and remove stored bytes','PackageReceipt');
 route('post','/api/v1/packages/{id}/cancel','Sender closes access and removes the temporary package','Empty');
 route('get','/api/admin/projects/{id}/agents/{agent_id}/enrollments/{enrollment_id}','Read whether this one-time setup is pending, claimed, expired or revoked; never returns its code',undefined,{owner:true});
-route('post','/api/admin/projects/{id}/agents/{agent_id}/enrollment','Generate a copyable single-use enrollment prompt','EnrollmentInput',{owner:true});
+route('post','/api/admin/projects/{id}/agents/{agent_id}/enrollment','Generate a copyable single-use enrollment prompt','EnrollmentInput',{owner:true,response:'EnrollmentIssued'});
 route('post','/api/v1/transfers','Record immutable file metadata without storing bytes','TransferInput',{idempotent:true});
 route('get','/api/v1/transfers/{id}','Read sanitized transfer metadata, offers and receipts');
 route('post','/api/v1/transfers/{id}/offers','Publish a developer-hosted expiring endpoint; token encrypted at rest','OfferInput',{idempotent:true});
@@ -137,7 +140,7 @@ route('post','/api/admin/projects/{id}/agents/{agent_id}/kit','Issue access and 
 route('post','/api/admin/projects/provision','Create the explicitly named environments and agents atomically','ProjectSetup',{owner:true,idempotent:true});
 
 route('post','/api/admin/projects/{id}/pairings/bulk','Set all project links or all links for one agent atomically','BulkPairingInput',{owner:true});
-route('post','/api/admin/projects/{id}/extend-validity','Extend all non-revoked agent credentials in this project','ExtendValidityInput',{owner:true,idempotent:true});
+route('post','/api/admin/projects/{id}/extend-validity','Extend all non-revoked agent credentials in this project','ExtendValidityInput',{owner:true,idempotent:true,response:'ExtendValidityResult'});
 
 route('post','/api/v1/telemetry','Record latest whole-host CPU and memory sample','HostMetrics');
 route('post','/api/admin/projects/{id}/agents/{agent_id}/revoke-access','Revoke every credential for this agent','Confirm',{owner:true});

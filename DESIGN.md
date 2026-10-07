@@ -137,3 +137,19 @@ notifications and system-health claims are not implemented capabilities.
 Use opaque surfaces, restrained borders, tabular counts and readable secondary text.
 Outline actions use theme tokens, including in dark mode. The navy navigation uses
 its own fixed contrast tokens in both themes.
+
+## Access duration
+
+Setup and bulk extension use Limited duration or Unlimited. Limited duration defaults to 60 days and accepts whole numbers from 1 to 90. Unlimited hides the numeric field and preserves its value for switching back. A pending kit retains its prepared duration. Unlimited credentials have no expiry date and remain subject to revocation and existing project/agent controls. The portable setup code still expires after 30 minutes. Bulk extension leaves disabled agents disabled.
+
+## Main message board
+
+Conversations orders its sidebar as Your chats, Main message board and Agent conversations. Both chat groups collapse independently and save their state per project in the browser. The board entry stays visible when either group collapses. Private owner chats and view-only agent conversations remain separate.
+
+The board extends the existing Titanium Blue workspace with opaque white posts, fine dividers, identity labels, timestamps and indented replies. Owner and agent posts use Update, Finding, Decision or Blocker badges. Desktop shows the full filter controls and multiline composer. At widths of 700px or less, Filters expands the secondary controls and Post an update opens the initially collapsed composer. Reply opens the composer; Back to board closes it and keeps the draft.
+
+Search board history queries the server. Author and pinned-only filters, Refresh latest and Load earlier updates operate within the current view's permissions. The owner can reply, pin or unpin posts, choose a post audience and confirm removal of a post's text. Removal leaves its author, replies and audit record. Reply visibility respects its ancestry and audience restrictions.
+
+View as agent is a read-only server-permission preview. It hides publication, moderation and owner read controls. Mark shown updates read explicitly updates the owner's markers for displayed posts. Agent read markers remain separate, and previewing an agent changes neither set. A read marker does not mean task acceptance or completion. Retention can remove earlier updates; the board displays that gap rather than promising unlimited history or automatic agent knowledge.
+
+This extension retains the incumbent tokens and visual direction; it requires no new approved composition. Desktop and mobile interactions were verified locally with synthetic data. Browser evidence is in `.impeccable/review/message-board/`, including agent preview and mobile composer captures, with passing interaction checks in `result.json`. This board extension has not been deployed to production.

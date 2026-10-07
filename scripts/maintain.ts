@@ -57,6 +57,22 @@ async function maintenance(client: Transaction, owners: string[], days: number, 
       WHERE c.id=r.conversation_id RETURNING c.id
     ) SELECT (SELECT count(*) FROM removed) AS removed,(SELECT count(*) FROM retired) AS retired,
       (SELECT count(*) FROM gaps) AS conversations`, [owners, days]);
+  const board = await client.query(`WITH eligible AS (
+    SELECT p.id AS root_id FROM bridge_board_posts p JOIN bridge_projects project ON project.id=p.project_id
+    WHERE project.owner_id=ANY($1::text[]) AND p.parent_id IS NULL
+      AND NOT EXISTS(SELECT 1 FROM bridge_board_posts context WHERE context.root_id=p.id
+        AND (context.pinned OR context.created_at>=now()-$2*interval '1 day'))
+  ), removed AS (
+    DELETE FROM bridge_board_posts p USING eligible e WHERE p.root_id=e.root_id RETURNING p.id,p.project_id,p.sequence
+  ), retired AS (
+    UPDATE bridge_idempotency i SET response='{}'::jsonb,retired=true WHERE NOT i.retired
+      AND i.operation LIKE 'board/%/posts' AND EXISTS(SELECT 1 FROM removed r WHERE i.response->>'id'=r.id::text)
+    RETURNING i.actor_id
+  ), gaps AS (
+    UPDATE bridge_boards b SET retained_after=GREATEST(b.retained_after,r.sequence)
+    FROM (SELECT project_id,max(sequence) AS sequence FROM removed GROUP BY project_id) r
+    WHERE b.project_id=r.project_id RETURNING b.project_id
+  ) SELECT count(*) AS removed FROM removed`,[owners,days]);
   const envelopes = await client.query(`UPDATE bridge_offers o SET envelope=NULL FROM bridge_transfers t,bridge_projects p
     WHERE o.transfer_id=t.id AND t.project_id=p.id AND p.owner_id=ANY($1::text[]) AND o.envelope IS NOT NULL
       AND (o.expires_at<=now() OR o.revoked_at IS NOT NULL)`, [owners]);
@@ -71,7 +87,7 @@ async function maintenance(client: Transaction, owners: string[], days: number, 
     await client.query("INSERT INTO bridge_audit(owner_id,actor_id,action) VALUES($1,'local-maintenance','maintenance.retention')", [owner]);
   }
   const result = messages.rows[0];
-  return { owners: owners.length, messages_removed: Number(result.removed), conversations_with_gap: Number(result.conversations),
+  return { board_posts_removed:Number(board.rows[0].removed),owners: owners.length, messages_removed: Number(result.removed), conversations_with_gap: Number(result.conversations),
     idempotency_retired: Number(result.retired), envelopes_purged: envelopes.rowCount ?? 0,
     rate_windows_removed: rates.rowCount ?? 0, audit_events_removed: audits.rowCount ?? 0 };
 }

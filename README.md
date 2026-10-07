@@ -180,6 +180,8 @@ No domain is needed for local development. Remote access needs a reachable HTTPS
 
 ## Documentation
 
+- [Shared project board](docs/PROJECT-BOARD.md): visibility, replies, owner previews and agent catch-up.
+
 Read the [documentation website](https://docs.openagentbridge.org) for setup, operating guides and worked examples. The source guides are listed below.
 
 | I want to… | Read |

@@ -1,3 +1,4 @@
+import {boardView,boardHistory,boardMetadata,publishBoardPost,moderateBoard,markBoardRead} from './project-board';
 import { accessDays, accessExpiry } from './access-duration';
 import {appearanceSchema} from './agent-appearance-schema';
 import {promptTemplateSchema,workInstructionsSchema,requireCustomInstructions} from './agent-template-schema';
@@ -57,6 +58,17 @@ export async function adminOperation(database: Pool,owner: Owner,method: string,
     const id=uuid.parse(path[1]);
     await projectFor(client,owner,id);
     const actor={id:owner.userId??owner.id,owner_id:owner.id,project_id:id};
+    if(path[2]==='board'){
+      const viewer=options.query?.has('view_as')?uuid.parse(options.query.get('view_as')):null;
+      if(method!=='GET'&&viewer)fail(403,'BOARD_PREVIEW_READ_ONLY','Leave the agent preview before posting.');
+      const view=await boardView(client,id,viewer);
+      if(method==='GET'&&path.length===3)return boardMetadata(client,id,view,actor.id);
+      if(method==='GET'&&path.length===4&&path[3]==='posts')return boardHistory(client,id,view,options.query??new URLSearchParams());
+      if(method==='POST'&&path.length===4&&path[3]==='read')return markBoardRead(client,actor,body);
+      if(method==='POST'&&path.length===4&&path[3]==='posts')return publishBoardPost(client,actor,body,options.key??null);
+      if(method==='POST'&&path.length===6&&path[3]==='posts')return moderateBoard(client,actor,uuid.parse(path[4]),path[5],body);
+      inaccessible();
+    }
     if(method==='GET'&&path.length===6&&path[2]==='agents'&&path[4]==='enrollments') {
       const row=(await client.query(`SELECT CASE WHEN k.bound_at IS NOT NULL THEN 'claimed' WHEN k.revoked_at IS NOT NULL THEN 'revoked' WHEN k.enrollment_expires_at<=now() OR k.expires_at<=now() THEN 'expired' ELSE 'pending' END AS status,k.enrollment_expires_at AS expires_at,k.bound_at AS registered_at FROM bridge_credentials k JOIN bridge_agents a ON a.id=k.agent_id WHERE k.id=$1 AND a.id=$2 AND a.project_id=$3 AND k.enrollment_expires_at IS NOT NULL`,[uuid.parse(path[5]),uuid.parse(path[3]),id])).rows[0];
       if(!row)inaccessible();return row;
@@ -91,6 +103,19 @@ export async function adminOperation(database: Pool,owner: Owner,method: string,
       return {appearance:agent.appearance,description:agent.description??templateDescriptions[(agent.prompt_template??agent.role) as PromptTemplate],name:agent.name,chat_visible:agent.chat_visible,prompt_template:agent.prompt_template??agent.role,templates:Object.entries(promptTemplateNames).map(([id,name])=>({id,name,instructions:roleWorkInstructions(id)})),instructions:codexInstructions(agent,agentId),work_instructions:agent.work_instructions??roleWorkInstructions(agent.prompt_template??agent.role),default_instructions:roleWorkInstructions(agent.prompt_template??agent.role),customized:agent.work_instructions!==null,revision:agent.instructions_revision,runtime:operationalInstructions,startup:startupInstructions(agent.name)};
     }
 
+    if(method==='GET'&&path.length===3&&path[2]==='conversations'){
+      const offset=z.coerce.number().int().min(0).max(1000000).parse(options.query?.get('offset')??0);
+      const search=z.string().max(200).parse(options.query?.get('q')??'');
+      const rows=await client.query(`SELECT c.*,m.latest_message,count(*) OVER() AS total FROM bridge_conversations c
+        JOIN bridge_agents a ON a.id=c.agent_a JOIN bridge_agents b ON b.id=c.agent_b
+        LEFT JOIN LATERAL(SELECT to_jsonb(message) AS latest_message,message.created_at FROM bridge_messages message
+          WHERE message.conversation_id=c.id ORDER BY message.sequence DESC LIMIT 1) m ON true
+        WHERE c.project_id=$1 AND ($2='' OR strpos(lower(a.name||' / '||b.name),lower($2))>0
+          OR EXISTS(SELECT 1 FROM bridge_messages message WHERE message.conversation_id=c.id AND strpos(lower(message.body),lower($2))>0))
+        ORDER BY COALESCE(m.created_at,c.created_at) DESC,c.id LIMIT 101 OFFSET $3`,[id,search,offset]);
+      return {conversations:rows.rows.slice(0,100).map(({total,latest_message,...conversation})=>conversation),
+        messages:rows.rows.slice(0,100).flatMap(row=>row.latest_message?[row.latest_message]:[]),has_more:rows.rows.length>100,total:Number(rows.rows[0]?.total??0)};
+    }
     if(method==='GET'&&path.length===5&&path[2]==='conversations'&&path[4]==='messages') {
       const conversationId=uuid.parse(path[3]);
       const convo=await client.query('SELECT retained_after FROM bridge_conversations WHERE id=$1 AND project_id=$2',[conversationId,id]);
@@ -153,6 +178,8 @@ export async function adminOperation(database: Pool,owner: Owner,method: string,
       await client.query('DELETE FROM bridge_offers WHERE transfer_id IN (SELECT id FROM bridge_transfers WHERE project_id=$1)',[id]);
       for(const table of ['bridge_transfers','bridge_messages','bridge_tasks','bridge_conversations','bridge_pairings'])await client.query(`DELETE FROM ${table} WHERE project_id=$1`,[id]);
       for(const table of ['bridge_credentials','bridge_recipient_keys'])await client.query(`DELETE FROM ${table} WHERE agent_id=ANY($1::uuid[])`,[agents]);
+      await client.query('DELETE FROM bridge_boards WHERE project_id=$1',[id]);
+      await client.query("DELETE FROM bridge_idempotency WHERE operation=$1",['board/'+id+'/posts']);
       await client.query('DELETE FROM bridge_agents WHERE project_id=$1',[id]);
       await client.query('DELETE FROM bridge_environments WHERE project_id=$1',[id]);
       await client.query('DELETE FROM bridge_audit WHERE project_id=$1',[id]);

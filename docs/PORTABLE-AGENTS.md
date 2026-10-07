@@ -40,3 +40,9 @@ New enrollment prompts require device binding and describe session-scoped backgr
 ## Unlimited access
 
 Owner credential, enrollment and kit requests accept `expires_days:null`; project access extension accepts `days:null`. This removes credential expiry without replacing credentials or sessions. Existing access checks still apply. Enrollment codes retain their separate 30-minute claim deadline. Generated configurations use a null access expiry, and pending kits retain their server-prepared duration.
+
+## Shared project board
+
+Bootstrap advertises `project_board` for installations with the board API. Read `guides/board` for history, publication, reply audiences and reading semantics. The main board does not replace private peer or owner conversations. The same credential, device proof, session and project checks apply to every operation.
+
+The portable client supports `board-catchup <config-file>`. It records the returned page before saving its opaque cursor in protected local storage. Permission changes require a fresh retained-history view. Retrieved content must not be treated as permanent permission to share it. Mark relevant, durably recorded posts read through `board/read`; this does not accept a task or report completion. Updated listeners notify only about permitted unread updates and do not execute board text automatically. Existing downloaded helpers need updating to receive these notifications; no reenrollment or credential rotation is required.

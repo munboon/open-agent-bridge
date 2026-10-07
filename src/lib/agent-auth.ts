@@ -34,7 +34,7 @@ export async function authenticate(client: Transaction, access: AgentAccess, req
     JOIN bridge_projects p ON p.id=a.project_id WHERE k.id=$1`, [match[1]]);
   const row = result.rows[0];
   const actual = Buffer.from(digest(access.token), 'hex');
-  if (!row || !row.active || row.revoked_at || new Date(row.expires_at).getTime() <= Date.now()
+  if (!row || !row.active || row.revoked_at || (row.expires_at !== null && new Date(row.expires_at).getTime() <= Date.now())
     || row.project_state === 'archived' || !timingSafeEqual(actual, Buffer.from(row.digest, 'hex'))) fail(401,'UNAUTHORIZED','A valid agent credential is required.');
   if(row.enrollment_expires_at&&!row.public_key&&!access.enrollment)fail(401,'ENROLLMENT_REQUIRED','Claim the setup with a locally generated key first.');
   if(row.key_bound&&!row.public_key&&!access.enrollment)fail(401,'KEY_PROOF_REQUIRED','This agent uses key-bound access.');
@@ -54,7 +54,7 @@ export async function recordAttempt(database:Pool,token:string) {
   const candidate=/^oab_([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\./.exec(token);
   let actor='anonymous';
   if(candidate) {
-    const known=await database.query('SELECT agent_id,digest FROM bridge_credentials WHERE id=$1 AND revoked_at IS NULL AND expires_at>now()',[candidate[1]]);
+    const known=await database.query('SELECT agent_id,digest FROM bridge_credentials WHERE id=$1 AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at>now())',[candidate[1]]);
     // A public credential identifier cannot spend another agent's quota.
     // Retired keys cannot exhaust the replacement key's shared agent budget.
     // Full authorization still happens inside the serialized transaction.

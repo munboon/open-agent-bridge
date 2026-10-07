@@ -1,5 +1,6 @@
 'use client';
 
+import {MainBoardPanel} from './MainBoardPanel';
 import {AgentAvatar} from './AgentAvatar';
 import {useEffect,useRef,useState,type FormEvent,type ReactNode} from 'react';
 import {browserRequestKey} from '../lib/browser-request-key';
@@ -7,15 +8,42 @@ import {chatThreads,threadMessages,participantTone,type ChatAgent,type ChatMessa
 import {Badge,EmptyState,Icon,Notice,api,problemText} from './ui';
 
 interface HistoryPage {messages:ChatMessage[];has_more:boolean;next_sequence:number;retention_gap:{removed_through_sequence:number}|null}
-interface Props {embedded?:boolean;selectionKey?:string;onSelect?:(key:string)=>void;initialRecipient?:string;projectId:string;agents:ChatAgent[];messages:ChatMessage[];conversations:ChatConversation[];onSent:()=>void}
+interface Props {embedded?:boolean;selectionKey?:string;onSelect?:(key:string)=>void;initialRecipient?:string;projectId:string;agents:ChatAgent[];messages:ChatMessage[];conversations:ChatConversation[];pairings?:{agent_a:string;agent_b:string}[];onSent:()=>void}
 
-export function ConversationPanel({embedded=false,selectionKey,onSelect,initialRecipient,projectId,agents,messages,conversations,onSent}:Props) {
-  const threads=chatThreads(agents,conversations);
+export function ConversationPanel({embedded=false,selectionKey,onSelect,initialRecipient,projectId,agents,messages,conversations,pairings=[],onSent}:Props) {
+  const [directory,setDirectory]=useState(conversations),[directoryMessages,setDirectoryMessages]=useState<ChatMessage[]>([]);
+  const [directoryMore,setDirectoryMore]=useState(false),[directoryBusy,setDirectoryBusy]=useState(false),[directoryError,setDirectoryError]=useState('');
+  const [directoryOffset,setDirectoryOffset]=useState(0),[directoryTotal,setDirectoryTotal]=useState(0);
+  const threads=chatThreads(agents,[...new Map([...conversations,...directory].map(c=>[c.id,c])).values()]);
   const [selection,setSelection]=useState(initialRecipient?'owner:'+initialRecipient:'');
   const selected=threads.find(t=>t.key===(selectionKey??selection));
-  const key=selected?.key??'', id=selected?.id??'';
+  const boardSelected=(selectionKey??selection)==='board'||!(selectionKey??selection);
+  const key=boardSelected?'board':selected?.key??'', id=selected?.id??'';
+  const [collapsed,setCollapsed]=useState<Record<string,boolean>>({});
+  const [visibleCounts,setVisibleCounts]=useState<Record<string,number>>({true:30,false:30});
+  useEffect(()=>{try{setCollapsed(JSON.parse(localStorage.getItem('oab-chat-groups:'+projectId)??'{}'));}catch{}},[projectId]);
+  function toggleGroup(group:string){setCollapsed(old=>{const next={...old,[group]:!old[group]};try{localStorage.setItem('oab-chat-groups:'+projectId,JSON.stringify(next));}catch{}return next;});}
   const active=useRef(key);active.current=key;
+  const [boardUnread,setBoardUnread]=useState(0);
   const [search,setSearch]=useState('');
+  const directoryGeneration=useRef(0);
+  useEffect(()=>{
+    const version=++directoryGeneration.current;setDirectoryBusy(true);setDirectoryError('');
+    api<{conversations:ChatConversation[];messages:ChatMessage[];has_more:boolean;total:number}>(`/api/admin/projects/${projectId}/conversations?q=${encodeURIComponent(search)}`)
+      .then(result=>{if(version!==directoryGeneration.current)return;setDirectory(result.conversations);setDirectoryMessages(result.messages);setDirectoryMore(result.has_more);setDirectoryTotal(result.total);setDirectoryOffset(result.conversations.length);})
+      .catch(e=>{if(version===directoryGeneration.current)setDirectoryError(problemText(e));})
+      .finally(()=>{if(version===directoryGeneration.current)setDirectoryBusy(false);});
+    return()=>{directoryGeneration.current++;};
+  },[projectId,search]);
+  async function moreConversations(){
+    const version=directoryGeneration.current;setDirectoryBusy(true);
+    try{const result=await api<{conversations:ChatConversation[];messages:ChatMessage[];has_more:boolean;total:number}>(`/api/admin/projects/${projectId}/conversations?offset=${directoryOffset}&q=${encodeURIComponent(search)}`);
+      if(version!==directoryGeneration.current)return;
+      setDirectory(old=>[...new Map([...old,...result.conversations].map(c=>[c.id,c])).values()]);setDirectoryMessages(old=>[...new Map([...old,...result.messages].map(m=>[m.id,m])).values()]);setDirectoryOffset(n=>n+result.conversations.length);setDirectoryMore(result.has_more);setDirectoryTotal(result.total);
+    }catch(e){if(version===directoryGeneration.current)setDirectoryError(problemText(e));}finally{if(version===directoryGeneration.current)setDirectoryBusy(false);}
+  }
+  const latestMessages=[...new Map([...directoryMessages,...messages].map(m=>[m.id,m])).values()].sort((a,b)=>b.created_at.localeCompare(a.created_at));
+
   const [findOpen,setFindOpen]=useState(false),[query,setQuery]=useState('');
   const [matchIndex,setMatchIndex]=useState(0);
   const scrollControl=useRef<HTMLInputElement>(null);
@@ -134,24 +162,36 @@ export function ConversationPanel({embedded=false,selectionKey,onSelect,initialR
   },[key,loading,displayed.length,showConversation,findOpen]);
   const lastMessage=displayed.at(-1)?.id;
   useEffect(()=>{if(!loading&&follow.current&&viewport.current)viewport.current.scrollTop=viewport.current.scrollHeight;},[lastMessage,key,loading]);
-  const filtered=threads.filter(t=>t.title.toLowerCase().includes(search.toLowerCase()));
+  const filtered=threads.filter(t=>!search||t.title.toLowerCase().includes(search.toLowerCase())||directory.some(c=>c.id===t.id));
   const avatar=(agentId:string)=><span className={'chat-avatar chat-tone-'+participantTone(agentId,agents)} aria-hidden="true">{agentId==='owner'?<span>Y</span>:<AgentAvatar appearance={agents.find(a=>a.id===agentId)?.appearance}/>}</span>;
   return <section className="content-section conversations-section">
-    <div className="section-heading"><div><h2 className="section-title"><Icon name="messages"/>Conversations</h2><p>Separate threads for your messages and agent-to-agent communication.</p></div></div>
+    <div className="section-heading"><div><h2 className="section-title"><Icon name="messages"/>Conversations</h2><p>Your chats, the main message board and agent-to-agent conversations.</p></div></div>
     <div className={"chat-workspace"+(showConversation?" is-conversation-open":"")} ref={workspace}>
       <nav className="chat-sidebar" aria-label="Project conversations">
         <label className="chat-search"><span className="sr-only">Search conversations</span><Icon name="search"/><input type="search" placeholder="Search conversations" value={search} onChange={e=>setSearch(e.target.value)}/></label>
-        {[true,false].map(owner=><div className="chat-group" key={String(owner)}><h3>{owner?'Your chats':'Agent conversations'}</h3>
-          {filtered.filter(t=>t.owner===owner).map(t=>{
-            const latest=messages.filter(m=>m.conversation_id===t.id).sort((a,b)=>Number(b.sequence)-Number(a.sequence))[0];
-            return <button type="button" className={'chat-thread'+(key===t.key?' is-selected':'')} aria-current={key===t.key?'page':undefined} key={t.key} onClick={event=>openConversation(t.key,event.currentTarget)} disabled={sending}>
-              {avatar(t.owner?t.b:t.a)}<span><strong>{t.title}</strong><small>{latest?.body??(t.owner?'Start a conversation':'No messages yet')}</small></span>
-            </button>;
-          })}
-          {!filtered.some(t=>t.owner===owner)&&<p className="chat-list-empty">{search?'No matching conversations.':owner?'Add an agent to start chatting.':'Agent conversations appear when agents communicate.'}</p>}
-        </div>)}
+        {[true,false].map(owner=>{
+          const group=String(owner),items=filtered.filter(t=>t.owner===owner).sort((a,b)=>{
+            const time=(threadId:string)=>latestMessages.find(m=>m.conversation_id===threadId)?.created_at??'';
+            return time(b.id).localeCompare(time(a.id))||a.title.localeCompare(b.title);
+          }),expanded=Boolean(search)||!collapsed[group];
+          return <div className="chat-group" key={group}>
+            {!owner&&<button type="button" className={'chat-thread board-thread'+(boardSelected?' is-selected':'')} aria-current={boardSelected?'page':undefined} onClick={event=>openConversation('board',event.currentTarget)} disabled={sending}><span className="chat-avatar chat-tone-owner" aria-hidden="true"><Icon name="messages"/></span><span><strong>Main message board</strong><small>{boardUnread?boardUnread+' unread updates':'Shared project updates'}</small></span></button>}
+            <button type="button" className="chat-group-toggle" aria-expanded={expanded} aria-controls={'chat-group-'+group} onClick={()=>toggleGroup(group)}><Icon name="chevron"/><span>{owner?'Your chats':'Agent conversations'}</span><span>{items.length}</span></button>
+            {expanded&&<div id={'chat-group-'+group}>
+              {items.slice(0,visibleCounts[group]??30).map(t=>{
+                const latest=latestMessages.filter(m=>m.conversation_id===t.id).sort((a,b)=>Number(b.sequence)-Number(a.sequence))[0];
+                return <button type="button" className={'chat-thread'+(key===t.key?' is-selected':'')} aria-current={key===t.key?'page':undefined} key={t.key} onClick={event=>openConversation(t.key,event.currentTarget)} disabled={sending}>{avatar(t.owner?t.b:t.a)}<span><strong>{t.title}</strong><small>{latest?.body??(t.owner?'Start a conversation':'No messages yet')}</small></span></button>;
+              })}
+              {items.length>(visibleCounts[group]??30)&&<button type="button" className="button button-text" onClick={()=>setVisibleCounts(old=>({...old,[group]:(old[group]??30)+30}))}>Show more conversations</button>}
+              {!items.length&&<p className="chat-list-empty">{search?'No matching conversations.':owner?'Add an agent to start chatting.':'Agent conversations appear when agents communicate.'}</p>}
+            </div>}
+          </div>;
+        })}
+        {directoryError&&<Notice error>{directoryError}</Notice>}
+        {directoryMore&&<button className="button button-text" disabled={directoryBusy} onClick={()=>void moreConversations()}>{directoryBusy?'Loading…':'Load more conversations'}</button>}
+        {directoryMore&&<p className="chat-list-empty">{directoryOffset} of {directoryTotal} conversations loaded.</p>}
       </nav>
-      {selected?<div className="chat-pane">
+      {boardSelected?<MainBoardPanel projectId={projectId} agents={agents} pairings={pairings} search={search} onBack={backToConversations} onSent={onSent} onUnreadCount={setBoardUnread} onMessageAgent={agentId=>openConversation('owner:'+agentId)}/>:selected?<div className="chat-pane">
         <header className="chat-header"><button type="button" className="button button-text chat-back" ref={backButton} onClick={backToConversations}><Icon name="back"/><span>All conversations</span></button><div className="chat-participants">{avatar(selected.a)}{avatar(selected.b)}<div><h3>{selected.title}</h3><p>{selected.owner?'Direct conversation with you':'Agent-to-agent conversation · View only'}</p></div></div>
           <button type="button" className="icon-button chat-find-toggle" ref={findButton} aria-label="Search this conversation" aria-expanded={findOpen} onClick={()=>{setFindOpen(!findOpen);if(findOpen)setQuery('');}}><Icon name="search"/></button>
           {!selected.owner&&<details className="chat-owner-menu"><summary className="icon-button" aria-label="Conversation actions"><Icon name="settings"/></summary><div className="chat-owner-links">{[selected.a,selected.b].map(agentId=><button className="button button-text" key={agentId} onClick={()=>openConversation('owner:'+agentId)}>Message {name(agentId)}</button>)}</div></details>}

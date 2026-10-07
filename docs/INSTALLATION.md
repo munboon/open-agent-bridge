@@ -6,7 +6,7 @@ Start with a new database. These instructions create your own administrator and 
 
 GitHub contains source code, not a configured database. A new installation has no accounts, projects, environments or agents. The local bootstrap command below creates one platform administrator with username `admin` and the password you supply. It does not create sample projects or agents.
 
-There is no shared default password. Never upload your administrator password, its database hash, a database dump, `.env` files or downloaded agent kits to GitHub. The bootstrap stores a password hash in your own database. The password used by the temporary development preview is private to that installation and is not part of the release.
+There is no shared default password. Never upload your administrator password, its database hash, a database dump, `.env` files or downloaded agent kits to GitHub. The bootstrap stores a password hash in your own database.
 
 The disposable database password in the GitHub Actions workflow is only for its temporary test container. It is not an application administrator password and must not be used for a deployed installation.
 

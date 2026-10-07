@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """Check tracked source without printing potentially private matching text."""
 import ipaddress
+import argparse
 import pathlib
 import re
 import subprocess
 import sys
 
 
-PRIVATE_DIRECTORIES = {'.local', '.planning', 'node_modules', '.next', 'deploy'}
+PRIVATE_DIRECTORIES = {'.local', '.planning', '.private', '.impeccable', 'node_modules', '.next', 'deploy'}
 PRIVATE_DOCUMENTS = {
     'docs/PROJECT-STATUS.md', 'docs/RELEASE-READINESS.md',
     'docs/DEPENDENCY-REVIEW.md', 'docs/CONTACT-TIMING-HANDOFF.md',
@@ -44,7 +45,8 @@ def check_file(name, data):
         or name in PRIVATE_DOCUMENTS
         or name.startswith(('docs/development/', 'docs/design/'))
         or (path.name.startswith('.env') and name != '.env.example')
-        or path.suffix.lower() in {'.dump', '.sqlite', '.sqlite3', '.db', '.log', '.zip'}
+        or path.suffix.lower() in {'.dump', '.sqlite', '.sqlite3', '.db', '.log', '.zip',
+                                   '.tar', '.tgz', '.gz', '.7z', '.bundle', '.pem', '.key', '.p12', '.pfx'}
         or path.name in {'bridge.config.json', 'control.json', 'fixture.json'}
     )
     if private_path:
@@ -68,8 +70,62 @@ def check_file(name, data):
     return findings
 
 
-def main():
+def git(root, *args):
+    return subprocess.check_output(['git', *args], cwd=root, stderr=subprocess.PIPE)
+
+
+def check_entries(root, entries, cache):
+    findings = []
+    for mode, blob, name in entries:
+        if mode not in {'100644', '100755'}:
+            findings.append((name, 0, 'tracked link or submodule needs review'))
+            continue
+        if blob not in cache:
+            cache[blob] = git(root, 'cat-file', 'blob', blob)
+        findings.extend(check_file(name, cache[blob]))
+    return findings
+
+
+def staged_entries(root):
+    entries = []
+    for record in filter(None, git(root, 'ls-files', '--stage', '-z').split(b'\0')):
+        metadata, name = record.split(b'\t', 1)
+        mode, blob, stage = metadata.decode().split()
+        if stage != '0':
+            raise ValueError('Resolve the staged merge conflict before publishing.')
+        entries.append((mode, blob, name.decode('utf-8', errors='replace')))
+    return entries
+
+
+def check_history(root, revision):
+    # Inspect every unique path/blob pair. A permitted fixture path must not
+    # exempt the same content committed under a different path.
+    revision = git(root, 'rev-parse', '--verify', revision + '^{commit}').decode().strip()
+    trees = set(git(root, 'log', '--format=%T', revision).decode().splitlines())
+    entries = set()
+    for tree in trees:
+        for record in filter(None, git(root, 'ls-tree', '-r', '-z', tree).split(b'\0')):
+            metadata, name = record.split(b'\t', 1)
+            mode, kind, blob = metadata.decode().split()
+            entries.add((mode, blob, name.decode('utf-8', errors='replace')))
+    return check_entries(root, sorted(entries), {})
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument('--staged', action='store_true', help='Inspect the index, including staged additions.')
+    mode.add_argument('--history', metavar='REVISION', help='Inspect all files reachable from this commit.')
+    args = parser.parse_args(argv)
     root = pathlib.Path(subprocess.check_output(['git', 'rev-parse', '--show-toplevel'], text=True).strip())
+    if args.staged or args.history:
+        try:
+            findings = (check_history(root, args.history) if args.history
+                        else check_entries(root, staged_entries(root), {}))
+        except (subprocess.CalledProcessError, ValueError):
+            print('Cannot verify the Git index or history. Publishing is blocked.', file=sys.stderr)
+            return 1
+        return report(findings, 'Git history' if args.history else 'Git index')
     names = subprocess.check_output(['git', 'ls-files', '-z'], cwd=root).decode().split('\0')
     findings = []
     count = 0
@@ -82,12 +138,16 @@ def main():
         else:
             findings.extend(check_file(name, file.read_bytes()))
         count += 1
-    for name, line, reason in findings:
+    return report(findings, f'{count} tracked files')
+
+
+def report(findings, scope):
+    for name, line, reason in sorted(set(findings)):
         print(f'{name}:{line}: {reason}', file=sys.stderr)
     if findings:
         print('Public source privacy check failed. Review locally; do not publish matching text.', file=sys.stderr)
         return 1
-    print(f'Public source privacy check passed for {count} tracked files. Review images, history and prose separately.')
+    print(f'Public source privacy check passed for {scope}. Review images and prose separately.')
     return 0
 
 

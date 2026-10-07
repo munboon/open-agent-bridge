@@ -1,3 +1,5 @@
+import {boardPostInput} from './project-board';
+import { accessDays } from './access-duration';
 import {contactScheduleSchema} from './agent-contact';
 import {promptTemplateSchema,workInstructionsSchema} from './agent-template-schema';
 import {projectSetupSchema} from './project-kit';
@@ -13,15 +15,15 @@ const schemas:Record<string,z.ZodType>={Confirm:z.strictObject({confirm:z.litera
   AgentInput:z.strictObject({name:z.string().trim().max(120).optional(),role:z.enum(['development','deployment']).optional(),prompt_template:promptTemplateSchema.optional(),work_instructions:workInstructionsSchema.nullable().optional(),environment_id:uuid}),
   BulkPairingInput:z.strictObject({enabled:z.boolean(),agent_id:uuid.optional(),expected_agent_ids:z.array(uuid).max(1000)}),
   PairingInput:z.strictObject({agent_a:uuid,agent_b:uuid,enabled:z.boolean().optional()}),
-  EnrollmentInput:z.strictObject({expires_days:z.number().int().min(1).max(90).optional(),replace:z.boolean().optional()}),
+  EnrollmentInput:z.strictObject({expires_days:accessDays.optional(),replace:z.boolean().optional()}),
   EnrollmentClaim:z.strictObject({public_key:z.string().max(512)}),
   PackageInput:z.strictObject({conversation_id:uuid,filename:z.string().max(120),size:z.number().int().min(0).max(1073741824),sha256:z.string().regex(/^[a-f0-9]{64}$/),sensitivity:z.enum(['synthetic','internal','sensitive']),encryption:z.object({scheme:z.literal('age'),recipient_fingerprint:z.string()}).optional()}),
   PackagePart:z.strictObject({data:z.string().max(349528),sha256:z.string().regex(/^[a-f0-9]{64}$/)}),
   PackageReceipt:z.strictObject({size:z.number().int().min(0),sha256:z.string().regex(/^[a-f0-9]{64}$/)}),
-  KitInput:z.strictObject({hide_messages:z.boolean().optional(),format:z.enum(["codex","third-party"]).default("codex"),expires_days:z.number().int().min(1).max(90).optional(),rotate:z.boolean().optional()}),
-  CredentialInput:z.strictObject({expires_days:z.number().int().min(1).max(90).optional(),rotate:z.boolean().optional(),overlap_seconds:z.number().int().min(0).max(3600).optional()}),
+  KitInput:z.strictObject({hide_messages:z.boolean().optional(),format:z.enum(["codex","third-party"]).default("codex"),expires_days:accessDays.optional(),rotate:z.boolean().optional()}),
+  CredentialInput:z.strictObject({expires_days:accessDays.optional(),rotate:z.boolean().optional(),overlap_seconds:z.number().int().min(0).max(3600).optional()}),
   ProjectStateInput:z.strictObject({state:z.enum(['active','paused','archived'])}),
-  ExtendValidityInput:z.strictObject({days:z.number().int().min(1).max(90)}),
+  ExtendValidityInput:z.strictObject({days:accessDays}),
   AgentInstructionPreview:z.object({name:z.string(),chat_visible:z.boolean(),prompt_template:promptTemplateSchema,templates:z.array(z.object({id:z.string(),name:z.string(),instructions:z.string()})),instructions:z.string(),work_instructions:z.string(),default_instructions:z.string(),customized:z.boolean(),revision:z.number().int(),runtime:z.string(),startup:z.string()}),
   AgentInstructionInput:z.object({name:label.optional(),chat_visible:z.boolean().optional(),prompt_template:promptTemplateSchema,work_instructions:z.string().min(1).max(16000).nullable(),expected_revision:z.number().int().nonnegative()}),
   AgentNameInput:z.strictObject({name:label}),
@@ -44,16 +46,23 @@ const task=z.object({id:uuid,project_id:uuid,environment_id:uuid,conversation_id
 const offer=z.object({id:uuid,origin:z.string().url(),expires_at:timestamp,revoked_at:timestamp.nullable(),cleanup_state:z.enum(['pending','confirmed','unknown'])});
 const receipt=z.object({id:uuid,transfer_id:uuid,offer_id:uuid,reporter_id:uuid,kind:z.enum(['uploaded','verified','failed']),measured_size:sequence,measured_sha256:z.string(),evidence:z.string(),created_at:timestamp});
 Object.assign(schemas,{
+  BoardPostInput:boardPostInput,
+  BoardReadInput:z.strictObject({post_ids:z.array(uuid).min(1).max(100)}),
+  BoardPinInput:z.strictObject({pinned:z.boolean()}),BoardRemoveInput:z.strictObject({confirm:z.literal(true)}),
+  BoardPost:z.object({id:uuid,project_id:uuid,sender_id:uuid.nullable(),author_type:z.enum(['owner','agent']),author_name:z.string(),environment_name:z.string().nullable(),parent_id:uuid.nullable(),root_id:uuid,kind:z.enum(['update','finding','decision','blocker']),body:z.string(),pinned:z.boolean(),removed_at:timestamp.nullable(),created_at:timestamp}),
+  BoardPage:z.object({posts:z.array(z.object({id:uuid,project_id:uuid,sender_id:uuid.nullable(),author_type:z.enum(['owner','agent']),author_name:z.string(),environment_name:z.string().nullable(),parent_id:uuid.nullable(),root_id:uuid,kind:z.enum(['update','finding','decision','blocker']),body:z.string(),pinned:z.boolean(),removed_at:timestamp.nullable(),created_at:timestamp})).max(100),has_more:z.boolean(),next_cursor:z.string().nullable(),older_cursor:z.string().nullable(),newer_cursor:z.string().nullable(),retention_gap:z.boolean(),view_available:z.boolean()}).describe('Only currently permitted posts. Opaque cursors are bound to identity, pairings and filters. Restart without a cursor on BOARD_VIEW_CHANGED. Reads do not acknowledge work.'),
   ProjectDeleteInput:z.strictObject({confirm_name:z.string().describe("Exact project name required for permanent deletion")}),ProjectDeleted:z.object({deleted:z.literal(true),id:uuid}),
   Project:project,ProjectList:z.object({projects:z.array(project.extend({agents:z.array(z.object({id:uuid,name:z.string(),role:z.enum(['development','deployment']),active:z.boolean(),environment_id:uuid,environment_name:z.string(),status:agentStatusSchema}))}))}),Environment:environment,AgentCreated:agentCreated,
   RecipientKey:recipientKey,Message:message,Conversation:conversation,Task:task,
   PairingResult:z.object({paired:z.boolean()}),RevokeResult:z.object({revoked:z.literal(true)}),
-  CredentialIssued:z.object({id:uuid,token:z.string().describe('Plaintext credential returned only by this issue operation. Store privately; never log.'),expires_at:timestamp,shown_once:z.literal(true)}),
+  EnrollmentIssued:z.object({enrollment_id:uuid,prompt:z.string().describe('Private single-use setup prompt; never log.'),expires_at:timestamp.describe('Setup code deadline, always 30 minutes after issuance.'),access_expires_at:timestamp.nullable().describe('Agent access expiry; null means unlimited until revoked.')}),
+  ExtendValidityResult:z.object({days:accessDays,agents_extended:z.number().int(),credentials_extended:z.number().int(),agents_skipped:z.number().int()}),
+  CredentialIssued:z.object({id:uuid,token:z.string().describe('Plaintext credential returned only by this issue operation. Store privately; never log.'),expires_at:timestamp.nullable(),shown_once:z.literal(true)}),
   TakeoverIssued:z.object({authorized:z.literal(true),takeover_token:z.string().describe('Single-use replacement session grant; provision privately to the replacement agent.'),shown_once:z.literal(true),instruction:z.string()}),
   OwnerCancelResult:z.object({cancel_requested:z.literal(true),notifications:z.array(message)}),
   MessagePage:z.object({messages:z.array(message).max(100),has_more:z.boolean(),next_sequence:z.number().int().nonnegative(),retention_gap:z.object({removed_through_sequence:z.number().int().nonnegative()}).nullable()}),
   ProjectSnapshot:z.object({project,environments:z.array(environment),agents:z.array(agentCreated.extend({active:z.boolean(),generation:z.number().int(),last_seen_at:timestamp.nullable(),has_session:z.boolean(),host_metrics:hostMetricsSchema.nullable(),host_metrics_at:timestamp.nullable(),status:agentStatusSchema,recipient_key:recipientKey.nullable()})),
-    credentials:z.array(z.object({id:uuid,agent_id:uuid,expires_at:timestamp,revoked_at:timestamp.nullable(),created_at:timestamp,download_pending:z.boolean()})),
+    credentials:z.array(z.object({id:uuid,agent_id:uuid,expires_at:timestamp.nullable(),revoked_at:timestamp.nullable(),created_at:timestamp,download_pending:z.boolean()})),
     conversations:z.array(conversation).max(100),tasks:z.array(task).max(100),messages:z.array(message).max(100),
     audit:z.array(z.object({id:sequence,actor_id:z.string(),action:z.string(),resource_id:z.string().nullable(),created_at:timestamp})).max(100),
     pairings:z.array(z.object({agent_a:uuid,agent_b:uuid,environment_id:uuid})),
@@ -69,7 +78,7 @@ function route(method:string,path:string,summary:string,schema?:string,settings:
   if(!settings.owner&&settings.session!==false)parameters.push({name:'X-Bridge-Session',in:'header',required:true,schema:{type:'string',format:'uuid'}});
   if(settings.idempotent)parameters.push({name:'Idempotency-Key',in:'header',required:true,schema:{type:'string',minLength:8,maxLength:128,pattern:'^[A-Za-z0-9_.:-]+$'}});
   if(settings.owner&&method==='post')parameters.push({name:'Origin',in:'header',required:true,schema:{type:'string',format:'uri'},description:'Must exactly match the configured owner portal origin.'});
-  for(const query of settings.query??[])parameters.push({name:query,in:'query',required:false,schema:query==='format'?{type:'string',enum:['agents','claude'],default:'agents'}:query==='after'?{type:'string',format:'uuid'}:{type:'integer',minimum:query==='limit'?1:0,maximum:query==='wait_seconds'?20:query==='limit'?100:9007199254740991}});
+  for(const query of settings.query??[])parameters.push({name:query,in:'query',required:false,schema:['q','cursor'].includes(query)?{type:'string',maxLength:query==='q'?200:2048}:['view_as','author'].includes(query)?{type:'string',description:query==='author'?'Agent UUID or owner':'Agent UUID for a read-only owner preview'}:query==='direction'?{type:'string',enum:['older','newer']}:query==='pinned'?{type:'boolean'}:query==='format'?{type:'string',enum:['agents','claude'],default:'agents'}:query==='after'?{type:'string',format:'uuid'}:{type:'integer',minimum:query==='limit'?1:0,maximum:query==='wait_seconds'?20:query==='limit'?100:9007199254740991}});
   const responses:Record<string,unknown>={'200':{description:settings.markdown?'Secret-free instruction file.':'Operation committed or authorized read returned. Resource timestamps are ISO 8601; sequence values may be decimal strings.',headers:{'Cache-Control':{schema:{type:'string',const:'no-store'}},...(settings.markdown?{'Content-Disposition':{schema:{type:'string'},description:'Attachment named AGENTS.md or CLAUDE.md.'}}:{})},content:settings.markdown?{'text/markdown':{schema:{type:'string'}}}:{'application/json':{schema:settings.response?{$ref:`#/components/schemas/${settings.response}`}:{type:'object'}}}}};
   for(const [status,description] of Object.entries({401:'Missing, invalid, expired or revoked identity',403:'Insufficient role, origin or local policy',404:'Unknown or inaccessible resource',405:'Unsupported method',409:'State, generation or idempotency conflict',410:'Expired offer or retired resource',413:'Request body too large',422:'Invalid request schema or manifest',429:'Rate or wait concurrency limit',503:'Dependency unavailable or capacity reached'})) responses[status]={description,content:{'application/json':{schema:{$ref:'#/components/schemas/Error'}}}};
   (paths[path]??={})[method]={summary,operationId:method+'_'+path.replace(/[^a-z0-9]/gi,'_'),tags:[settings.owner?'Owner':'Agents'],
@@ -77,7 +86,19 @@ function route(method:string,path:string,summary:string,schema?:string,settings:
     ...(schema?{requestBody:{required:true,content:{'application/json':{schema:{$ref:`#/components/schemas/${schema}`}}}}}:{})};
 }
 route('get','/api/v1/bootstrap','Read assigned identity and session policy; null idle_seconds and empty_polls mean no idle cutoff',undefined,{session:false});
-for(const topic of ['messaging','tasks','transfers','packages'])route('get',`/api/v1/guides/${topic}`,`Read the ${topic} guide only when needed; response includes version, topic and instructions`);
+for(const topic of ['messaging','tasks','transfers','packages','board'])route('get',`/api/v1/guides/${topic}`,`Read the ${topic} guide only when needed; response includes version, topic and instructions`);
+route('get','/api/v1/board','Discover the main board, permitted peers, visible pins and unread posts');
+route('get','/api/v1/board/posts','Read retained board posts under current pairing and inherited reply permissions',undefined,{query:['cursor','direction','limit','q','author','pinned'],response:'BoardPage'});
+route('get','/api/v1/board/posts/{id}','Read one currently permitted post',undefined,{response:'BoardPost'});
+route('post','/api/v1/board/posts','Publish an immutable project update or reply; this never grants task authority','BoardPostInput',{idempotent:true,response:'BoardPost'});
+route('post','/api/v1/board/read','Mark durably recorded visible posts read; this is not acceptance or completion','BoardReadInput');
+route('get','/api/admin/projects/{id}/board','Read board metadata or preview an agent without changing read markers',undefined,{owner:true,query:['view_as']});
+route('get','/api/admin/projects/{id}/board/posts','Read or search the project board; view_as applies the actual agent visibility rules',undefined,{owner:true,query:['view_as','cursor','direction','limit','q','author','pinned'],response:'BoardPage'});
+route('post','/api/admin/projects/{id}/board/read','Mark shown board updates read as the current owner; previews cannot mark read','BoardReadInput',{owner:true});
+route('post','/api/admin/projects/{id}/board/posts','Publish as the authenticated owner; previews cannot post','BoardPostInput',{owner:true,idempotent:true,response:'BoardPost'});
+route('post','/api/admin/projects/{id}/board/posts/{post_id}/pin','Pin or unpin an update; at most 20 pins','BoardPinInput',{owner:true});
+route('post','/api/admin/projects/{id}/board/posts/{post_id}/remove','Remove post text and preserve its author, replies and audit record','BoardRemoveInput',{owner:true});
+route('get','/api/admin/projects/{id}/conversations','Search and paginate owner-visible direct conversations by recent activity',undefined,{owner:true,query:['offset','q']});
 route('post','/api/v1/recipient-key','Register your own age encryption public key; matching retries succeed, replacement requires administrator recovery','RecipientKeyInput');
 route('get','/api/v1/conversations/{id}/recipient-key','Read the authenticated conversation recipient encryption key');
 route('get','/api/v1/peers','Discover permitted peers with prompt_template, role_name, public description and recipient keys; role remains a legacy compatibility field',undefined,{query:['limit','after']});
@@ -106,7 +127,7 @@ route('post','/api/v1/packages/{id}/complete','Verify the complete package and n
 route('post','/api/v1/packages/{id}/receipt','Recipient confirms measured hash and size; close download access and remove stored bytes','PackageReceipt');
 route('post','/api/v1/packages/{id}/cancel','Sender closes access and removes the temporary package','Empty');
 route('get','/api/admin/projects/{id}/agents/{agent_id}/enrollments/{enrollment_id}','Read whether this one-time setup is pending, claimed, expired or revoked; never returns its code',undefined,{owner:true});
-route('post','/api/admin/projects/{id}/agents/{agent_id}/enrollment','Generate a copyable single-use enrollment prompt','EnrollmentInput',{owner:true});
+route('post','/api/admin/projects/{id}/agents/{agent_id}/enrollment','Generate a copyable single-use enrollment prompt','EnrollmentInput',{owner:true,response:'EnrollmentIssued'});
 route('post','/api/v1/transfers','Record immutable file metadata without storing bytes','TransferInput',{idempotent:true});
 route('get','/api/v1/transfers/{id}','Read sanitized transfer metadata, offers and receipts');
 route('post','/api/v1/transfers/{id}/offers','Publish a developer-hosted expiring endpoint; token encrypted at rest','OfferInput',{idempotent:true});
@@ -137,7 +158,7 @@ route('post','/api/admin/projects/{id}/agents/{agent_id}/kit','Issue access and 
 route('post','/api/admin/projects/provision','Create the explicitly named environments and agents atomically','ProjectSetup',{owner:true,idempotent:true});
 
 route('post','/api/admin/projects/{id}/pairings/bulk','Set all project links or all links for one agent atomically','BulkPairingInput',{owner:true});
-route('post','/api/admin/projects/{id}/extend-validity','Extend all non-revoked agent credentials in this project','ExtendValidityInput',{owner:true,idempotent:true});
+route('post','/api/admin/projects/{id}/extend-validity','Extend all non-revoked agent credentials in this project','ExtendValidityInput',{owner:true,idempotent:true,response:'ExtendValidityResult'});
 
 route('post','/api/v1/telemetry','Record latest whole-host CPU and memory sample','HostMetrics');
 route('post','/api/admin/projects/{id}/agents/{agent_id}/revoke-access','Revoke every credential for this agent','Confirm',{owner:true});

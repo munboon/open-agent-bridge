@@ -1,3 +1,5 @@
+import {boardView,boardHistory,boardMetadata,publishBoardPost,moderateBoard,markBoardRead} from './project-board';
+import { accessDays, accessExpiry } from './access-duration';
 import {appearanceSchema} from './agent-appearance-schema';
 import {promptTemplateSchema,workInstructionsSchema,requireCustomInstructions} from './agent-template-schema';
 import {codexInstructions,roleWorkInstructions,promptTemplateNames,templateDescriptions,type PromptTemplate} from './agent-instructions';
@@ -56,6 +58,17 @@ export async function adminOperation(database: Pool,owner: Owner,method: string,
     const id=uuid.parse(path[1]);
     await projectFor(client,owner,id);
     const actor={id:owner.userId??owner.id,owner_id:owner.id,project_id:id};
+    if(path[2]==='board'){
+      const viewer=options.query?.has('view_as')?uuid.parse(options.query.get('view_as')):null;
+      if(method!=='GET'&&viewer)fail(403,'BOARD_PREVIEW_READ_ONLY','Leave the agent preview before posting.');
+      const view=await boardView(client,id,viewer);
+      if(method==='GET'&&path.length===3)return boardMetadata(client,id,view,actor.id);
+      if(method==='GET'&&path.length===4&&path[3]==='posts')return boardHistory(client,id,view,options.query??new URLSearchParams());
+      if(method==='POST'&&path.length===4&&path[3]==='read')return markBoardRead(client,actor,body);
+      if(method==='POST'&&path.length===4&&path[3]==='posts')return publishBoardPost(client,actor,body,options.key??null);
+      if(method==='POST'&&path.length===6&&path[3]==='posts')return moderateBoard(client,actor,uuid.parse(path[4]),path[5],body);
+      inaccessible();
+    }
     if(method==='GET'&&path.length===6&&path[2]==='agents'&&path[4]==='enrollments') {
       const row=(await client.query(`SELECT CASE WHEN k.bound_at IS NOT NULL THEN 'claimed' WHEN k.revoked_at IS NOT NULL THEN 'revoked' WHEN k.enrollment_expires_at<=now() OR k.expires_at<=now() THEN 'expired' ELSE 'pending' END AS status,k.enrollment_expires_at AS expires_at,k.bound_at AS registered_at FROM bridge_credentials k JOIN bridge_agents a ON a.id=k.agent_id WHERE k.id=$1 AND a.id=$2 AND a.project_id=$3 AND k.enrollment_expires_at IS NOT NULL`,[uuid.parse(path[5]),uuid.parse(path[3]),id])).rows[0];
       if(!row)inaccessible();return row;
@@ -90,6 +103,19 @@ export async function adminOperation(database: Pool,owner: Owner,method: string,
       return {appearance:agent.appearance,description:agent.description??templateDescriptions[(agent.prompt_template??agent.role) as PromptTemplate],name:agent.name,chat_visible:agent.chat_visible,prompt_template:agent.prompt_template??agent.role,templates:Object.entries(promptTemplateNames).map(([id,name])=>({id,name,instructions:roleWorkInstructions(id)})),instructions:codexInstructions(agent,agentId),work_instructions:agent.work_instructions??roleWorkInstructions(agent.prompt_template??agent.role),default_instructions:roleWorkInstructions(agent.prompt_template??agent.role),customized:agent.work_instructions!==null,revision:agent.instructions_revision,runtime:operationalInstructions,startup:startupInstructions(agent.name)};
     }
 
+    if(method==='GET'&&path.length===3&&path[2]==='conversations'){
+      const offset=z.coerce.number().int().min(0).max(1000000).parse(options.query?.get('offset')??0);
+      const search=z.string().max(200).parse(options.query?.get('q')??'');
+      const rows=await client.query(`SELECT c.*,m.latest_message,count(*) OVER() AS total FROM bridge_conversations c
+        JOIN bridge_agents a ON a.id=c.agent_a JOIN bridge_agents b ON b.id=c.agent_b
+        LEFT JOIN LATERAL(SELECT to_jsonb(message) AS latest_message,message.created_at FROM bridge_messages message
+          WHERE message.conversation_id=c.id ORDER BY message.sequence DESC LIMIT 1) m ON true
+        WHERE c.project_id=$1 AND ($2='' OR strpos(lower(a.name||' / '||b.name),lower($2))>0
+          OR EXISTS(SELECT 1 FROM bridge_messages message WHERE message.conversation_id=c.id AND strpos(lower(message.body),lower($2))>0))
+        ORDER BY COALESCE(m.created_at,c.created_at) DESC,c.id LIMIT 101 OFFSET $3`,[id,search,offset]);
+      return {conversations:rows.rows.slice(0,100).map(({total,latest_message,...conversation})=>conversation),
+        messages:rows.rows.slice(0,100).flatMap(row=>row.latest_message?[row.latest_message]:[]),has_more:rows.rows.length>100,total:Number(rows.rows[0]?.total??0)};
+    }
     if(method==='GET'&&path.length===5&&path[2]==='conversations'&&path[4]==='messages') {
       const conversationId=uuid.parse(path[3]);
       const convo=await client.query('SELECT retained_after FROM bridge_conversations WHERE id=$1 AND project_id=$2',[conversationId,id]);
@@ -109,7 +135,7 @@ export async function adminOperation(database: Pool,owner: Owner,method: string,
       const agents=await client.query(`SELECT a.id,a.public_id,a.name,a.role,a.description,a.appearance,COALESCE(a.prompt_template,a.role) AS prompt_template,COALESCE(a.chat_visible,a.role='development') AS chat_visible,a.environment_id,a.active,a.generation,a.last_seen_at,a.host_metrics,a.host_metrics_at,(a.session_id IS NOT NULL) AS has_session,
         CASE WHEN k.agent_id IS NULL THEN NULL ELSE jsonb_build_object('scheme',k.scheme,'public_key',k.public_key,'fingerprint',k.fingerprint) END AS recipient_key
         FROM bridge_agents a LEFT JOIN bridge_recipient_keys k ON k.agent_id=a.id WHERE a.project_id=$1 ORDER BY a.name`,[id]);
-      const credentials=await client.query(`SELECT k.id,k.agent_id,k.expires_at,k.revoked_at,k.created_at,(k.kit_envelope IS NOT NULL AND k.revoked_at IS NULL AND k.expires_at>now()) AS download_pending FROM bridge_credentials k
+      const credentials=await client.query(`SELECT k.id,k.agent_id,k.expires_at,k.revoked_at,k.created_at,(k.kit_envelope IS NOT NULL AND k.revoked_at IS NULL AND (k.expires_at IS NULL OR k.expires_at>now())) AS download_pending FROM bridge_credentials k
         JOIN bridge_agents a ON a.id=k.agent_id WHERE a.project_id=$1 ORDER BY k.created_at DESC`,[id]);
       const conversations=await client.query('SELECT * FROM bridge_conversations WHERE project_id=$1 ORDER BY created_at DESC LIMIT 100',[id]);
       const tasks=await client.query('SELECT * FROM bridge_tasks WHERE project_id=$1 ORDER BY created_at DESC LIMIT 100',[id]);
@@ -126,10 +152,10 @@ export async function adminOperation(database: Pool,owner: Owner,method: string,
     }
     if(method!=='POST') fail(405,'METHOD_NOT_ALLOWED','Use a supported admin method.');
     if(path.length===3&&path[2]==='extend-validity') {
-      const input=z.strictObject({days:z.number().int().min(1).max(90)}).parse(body);
+      const input=z.strictObject({days:accessDays}).parse(body);
       return idempotent(client,owner.id,`admin/${id}/extend-validity`,options.key??null,input,async()=> {
         const updated=await client.query(`UPDATE bridge_credentials k
-          SET expires_at=GREATEST(k.expires_at,now())+$2*interval '1 day'
+          SET expires_at=CASE WHEN $2::integer IS NULL OR k.expires_at IS NULL THEN NULL ELSE GREATEST(k.expires_at,now())+$2*interval '1 day' END
           FROM bridge_agents a WHERE k.agent_id=a.id AND a.project_id=$1 AND k.revoked_at IS NULL
           RETURNING k.id,k.agent_id`,[id,input.days]);
         const agentsExtended=new Set(updated.rows.map(row=>row.agent_id)).size;
@@ -152,6 +178,8 @@ export async function adminOperation(database: Pool,owner: Owner,method: string,
       await client.query('DELETE FROM bridge_offers WHERE transfer_id IN (SELECT id FROM bridge_transfers WHERE project_id=$1)',[id]);
       for(const table of ['bridge_transfers','bridge_messages','bridge_tasks','bridge_conversations','bridge_pairings'])await client.query(`DELETE FROM ${table} WHERE project_id=$1`,[id]);
       for(const table of ['bridge_credentials','bridge_recipient_keys'])await client.query(`DELETE FROM ${table} WHERE agent_id=ANY($1::uuid[])`,[agents]);
+      await client.query('DELETE FROM bridge_boards WHERE project_id=$1',[id]);
+      await client.query("DELETE FROM bridge_idempotency WHERE operation=$1",['board/'+id+'/posts']);
       await client.query('DELETE FROM bridge_agents WHERE project_id=$1',[id]);
       await client.query('DELETE FROM bridge_environments WHERE project_id=$1',[id]);
       await client.query('DELETE FROM bridge_audit WHERE project_id=$1',[id]);
@@ -270,11 +298,11 @@ export async function adminOperation(database: Pool,owner: Owner,method: string,
       }
       if(path[4]==='credentials') {
         if((await client.query('SELECT key_bound FROM bridge_agents WHERE id=$1',[agentId])).rows[0].key_bound)fail(409,'KEY_BOUND_AGENT','Generate replacement setup for this key-bound agent.');
-        const input=z.strictObject({expires_days:z.number().int().min(1).max(90).default(30),rotate:z.boolean().default(false),overlap_seconds:z.number().int().min(0).max(3600).default(0)}).parse(body);
+        const input=z.strictObject({expires_days:accessDays.default(30),rotate:z.boolean().default(false),overlap_seconds:z.number().int().min(0).max(3600).default(0)}).parse(body);
         if(input.rotate) await client.query(`UPDATE bridge_credentials SET expires_at=LEAST(expires_at,now()+$2*interval '1 second'),
           revoked_at=CASE WHEN $2=0 THEN now() ELSE revoked_at END WHERE agent_id=$1 AND revoked_at IS NULL`,[agentId,input.overlap_seconds]);
         const credential=newCredential();
-        const expires=new Date(Date.now()+input.expires_days*86400000);
+        const expires=accessExpiry(input.expires_days);
         await client.query('INSERT INTO bridge_credentials(id,agent_id,digest,expires_at) VALUES($1,$2,$3,$4)',[credential.id,agentId,credential.digest,expires]);
         await audit(client,actor,input.rotate?'credential.rotate':'credential.issue',credential.id);
         return {id:credential.id,token:credential.token,expires_at:expires,shown_once:true};

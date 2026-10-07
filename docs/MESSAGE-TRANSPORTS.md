@@ -12,9 +12,9 @@ The server limits concurrent inbox streams/waits to 100 per process and one per 
 
 `pnpm start` runs `scripts/server.mjs` with the project's existing tsx and Next.js dependencies. The custom server advertises WebSocket support; plain `next start` and `next dev` advertise SSE/polling only. Process supervisors must invoke the new start command rather than next start to advertise WebSocket support. Apply additive migration 021 before starting this release. Do not roll back the application after enrolling device-bound identities without assessing the older release's weaker enforcement.
 
-Caddy's existing reverse proxy must pass WebSocket upgrades and avoid buffering SSE. Validate both transports through the public edge before claiming production compatibility. Cloudflare policies, other proxies, and each agent harness's wake-up behavior need live validation. Local transport tests are not proof of every external harness.
+A reverse proxy must pass WebSocket upgrades and avoid buffering SSE. Validate both transports through the public edge before claiming production compatibility. Cloudflare policies, other proxies, and each agent harness's wake-up behavior need live validation. Local transport tests are not proof of every external harness.
 
-This change is prepared locally, not deployed. It does not update running agents. Newly generated prompts include negotiation instructions; existing agents retain their current listener until explicitly refreshed by their operator.
+Newly generated prompts include negotiation instructions. Existing agents retain their current listener until explicitly refreshed by their operator.
 
 ## Device-bound enrollment and reconnect
 
@@ -26,7 +26,7 @@ Connect first obtains a signed POST sessions/challenge response, then signs its 
 
 The generated prompt instructs the agent to preserve its global AGENTS.md and add only project, identity and local tooling/config references with reconnect steps. Secrets and raw machine identifiers stay out of that file. Reconnection is user-triggered for the matching project, not automatic for unrelated sessions. Global files belong to the remote agent; the bridge does not write them itself.
 
-Local verification includes all three transports with the portable client, session fencing, changed/missing bindings and challenge replay rejection. The production entry point was also exercised locally through enrollment, challenge, session creation, bootstrap and an authenticated WebSocket heartbeat after ordinary HTTP requests. Windows and macOS device collection and public proxy behavior still require their respective environments.
+Verify device collection on each supported operating system and transport behavior through your own public proxy before use.
 
 ## Contact timing in the portal
 
@@ -37,5 +37,3 @@ The portable client supports `listen <config-file> short 5` for five-second shor
 A runtime without background scheduling reports mode checkpoint instead. The portal shows After current work step, without inventing a timer. Disconnected agents show Unknown for next contact. Missed scheduled checks show Overdue, then Unknown when contact is no longer recent. A stale dashboard feed shows Unavailable. Last-used connection details remain available after a clean close; a replacement session starts without the old schedule.
 
 Overview, Agents & access and the live-agent monitor share Last contact and Next contact labels. A shared browser clock updates estimates every second without extra requests, using the server sample time to avoid local clock skew. Connection details explain the technical mode, short-poll interval or bounded long-poll wait. The contact time estimates message retrieval, not acknowledgement or work completion.
-
-Verification covered all four portable transport modes, observed mode storage, explicit schedule reporting, overdue/stale behavior, session replacement and migration readiness. The synthetic preview rendered the contact labels. Desktop/mobile screenshot review was unavailable because no browser was connected in this session.

@@ -1,3 +1,4 @@
+import { accessDays, accessExpiry } from './access-duration';
 import {appearanceSchema} from './agent-appearance-schema';
 import {promptTemplateSchema,workInstructionsSchema,requireCustomInstructions} from './agent-template-schema';
 import {codexInstructions,roleWorkInstructions,promptTemplateNames,templateDescriptions,type PromptTemplate} from './agent-instructions';
@@ -109,7 +110,7 @@ export async function adminOperation(database: Pool,owner: Owner,method: string,
       const agents=await client.query(`SELECT a.id,a.public_id,a.name,a.role,a.description,a.appearance,COALESCE(a.prompt_template,a.role) AS prompt_template,COALESCE(a.chat_visible,a.role='development') AS chat_visible,a.environment_id,a.active,a.generation,a.last_seen_at,a.host_metrics,a.host_metrics_at,(a.session_id IS NOT NULL) AS has_session,
         CASE WHEN k.agent_id IS NULL THEN NULL ELSE jsonb_build_object('scheme',k.scheme,'public_key',k.public_key,'fingerprint',k.fingerprint) END AS recipient_key
         FROM bridge_agents a LEFT JOIN bridge_recipient_keys k ON k.agent_id=a.id WHERE a.project_id=$1 ORDER BY a.name`,[id]);
-      const credentials=await client.query(`SELECT k.id,k.agent_id,k.expires_at,k.revoked_at,k.created_at,(k.kit_envelope IS NOT NULL AND k.revoked_at IS NULL AND k.expires_at>now()) AS download_pending FROM bridge_credentials k
+      const credentials=await client.query(`SELECT k.id,k.agent_id,k.expires_at,k.revoked_at,k.created_at,(k.kit_envelope IS NOT NULL AND k.revoked_at IS NULL AND (k.expires_at IS NULL OR k.expires_at>now())) AS download_pending FROM bridge_credentials k
         JOIN bridge_agents a ON a.id=k.agent_id WHERE a.project_id=$1 ORDER BY k.created_at DESC`,[id]);
       const conversations=await client.query('SELECT * FROM bridge_conversations WHERE project_id=$1 ORDER BY created_at DESC LIMIT 100',[id]);
       const tasks=await client.query('SELECT * FROM bridge_tasks WHERE project_id=$1 ORDER BY created_at DESC LIMIT 100',[id]);
@@ -126,10 +127,10 @@ export async function adminOperation(database: Pool,owner: Owner,method: string,
     }
     if(method!=='POST') fail(405,'METHOD_NOT_ALLOWED','Use a supported admin method.');
     if(path.length===3&&path[2]==='extend-validity') {
-      const input=z.strictObject({days:z.number().int().min(1).max(90)}).parse(body);
+      const input=z.strictObject({days:accessDays}).parse(body);
       return idempotent(client,owner.id,`admin/${id}/extend-validity`,options.key??null,input,async()=> {
         const updated=await client.query(`UPDATE bridge_credentials k
-          SET expires_at=GREATEST(k.expires_at,now())+$2*interval '1 day'
+          SET expires_at=CASE WHEN $2::integer IS NULL OR k.expires_at IS NULL THEN NULL ELSE GREATEST(k.expires_at,now())+$2*interval '1 day' END
           FROM bridge_agents a WHERE k.agent_id=a.id AND a.project_id=$1 AND k.revoked_at IS NULL
           RETURNING k.id,k.agent_id`,[id,input.days]);
         const agentsExtended=new Set(updated.rows.map(row=>row.agent_id)).size;
@@ -270,11 +271,11 @@ export async function adminOperation(database: Pool,owner: Owner,method: string,
       }
       if(path[4]==='credentials') {
         if((await client.query('SELECT key_bound FROM bridge_agents WHERE id=$1',[agentId])).rows[0].key_bound)fail(409,'KEY_BOUND_AGENT','Generate replacement setup for this key-bound agent.');
-        const input=z.strictObject({expires_days:z.number().int().min(1).max(90).default(30),rotate:z.boolean().default(false),overlap_seconds:z.number().int().min(0).max(3600).default(0)}).parse(body);
+        const input=z.strictObject({expires_days:accessDays.default(30),rotate:z.boolean().default(false),overlap_seconds:z.number().int().min(0).max(3600).default(0)}).parse(body);
         if(input.rotate) await client.query(`UPDATE bridge_credentials SET expires_at=LEAST(expires_at,now()+$2*interval '1 second'),
           revoked_at=CASE WHEN $2=0 THEN now() ELSE revoked_at END WHERE agent_id=$1 AND revoked_at IS NULL`,[agentId,input.overlap_seconds]);
         const credential=newCredential();
-        const expires=new Date(Date.now()+input.expires_days*86400000);
+        const expires=accessExpiry(input.expires_days);
         await client.query('INSERT INTO bridge_credentials(id,agent_id,digest,expires_at) VALUES($1,$2,$3,$4)',[credential.id,agentId,credential.digest,expires]);
         await audit(client,actor,input.rotate?'credential.rotate':'credential.issue',credential.id);
         return {id:credential.id,token:credential.token,expires_at:expires,shown_once:true};

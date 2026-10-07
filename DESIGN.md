@@ -137,3 +137,7 @@ notifications and system-health claims are not implemented capabilities.
 Use opaque surfaces, restrained borders, tabular counts and readable secondary text.
 Outline actions use theme tokens, including in dark mode. The navy navigation uses
 its own fixed contrast tokens in both themes.
+
+## Access duration
+
+Setup and bulk extension use Limited duration or Unlimited. Limited duration defaults to 60 days and accepts whole numbers from 1 to 90. Unlimited hides the numeric field and preserves its value for switching back. A pending kit retains its prepared duration. Unlimited credentials have no expiry date and remain subject to revocation and existing project/agent controls. The portable setup code still expires after 30 minutes. Bulk extension leaves disabled agents disabled.

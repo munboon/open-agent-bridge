@@ -36,3 +36,7 @@ from this installation; do not reuse another installation's credentials.
 ## Device binding and background transports
 
 New enrollment prompts require device binding and describe session-scoped background transport negotiation. See [message transports and reconnection](MESSAGE-TRANSPORTS.md) for request-v2, the connection challenge, global instruction references and administrator recovery. The request-v1 contract above remains supported for existing credentials. Device identifiers are not proof against deliberate cloning of the private identity.
+
+## Unlimited access
+
+Owner credential, enrollment and kit requests accept `expires_days:null`; project access extension accepts `days:null`. This removes credential expiry without replacing credentials or sessions. Existing access checks still apply. Enrollment codes retain their separate 30-minute claim deadline. Generated configurations use a null access expiry, and pending kits retain their server-prepared duration.

@@ -71,6 +71,10 @@ describe.skipIf(!enabled)('real PostgreSQL bridge boundaries and recovery',()=> 
     expect(kit.filename).toMatch(/\.md$/);
     expect(kit.contentType).toContain('text/markdown');
     const prompt=kit.archive.toString('utf8');
+    expect(prompt).toContain('You must respond to every new owner message');
+    expect(prompt).toContain('Immediately acknowledge receipt in a visible reply');
+    expect(prompt).toContain('before starting task work');
+    expect(prompt).toContain('POST /messages using the received conversation_id, your own recipient_agent_id');
     const config=JSON.parse(prompt.split('```json\n')[1].split('```')[0]);
     expect(config.name).toBe('External reviewer');
     expect((await api(config.access_token,undefined,'bootstrap')).status).toBe(200);
@@ -235,10 +239,13 @@ describe.skipIf(!enabled)('real PostgreSQL bridge boundaries and recovery',()=> 
     try {
       for(const id of [waiting,late]) {
         const kit=await createRoleKit(client,owner,project,id);
-        expect(kit).toContain('Kit version 1.2.2');
+        expect(kit).toContain('Kit version 1.2.3');
         expect(kit).toContain('at most one GET');
         expect(kit).toContain('handle queued operator chat');
         expect(kit).toContain('Owner chat needs no developer or pairing');
+        expect(kit).toContain('You must respond to every new owner message');
+        expect(kit).toContain('Immediately acknowledge receipt in a visible reply');
+        expect(kit).toContain('before starting task work');
         expect(kit).toContain('There is no idle deadline or empty-poll limit.');
         expect(kit).toContain('Repeat discovery after each empty inbox wait');
         expect(kit).not.toMatch(/Stop after 10 minutes|30 successful empty polls|wait within the idle budget/);
@@ -252,7 +259,12 @@ describe.skipIf(!enabled)('real PostgreSQL bridge boundaries and recovery',()=> 
       expect((await api('invalid',undefined,`guides/${topic}`)).status).toBe(401);
       expect((await api(waitingKey,undefined,`guides/${topic}`)).status).toBe(409);
       const guide=await api(waitingKey,session,`guides/${topic}`);
-      expect(guide.status).toBe(200);expect(guide.data).toMatchObject({version:'1.2.0',topic});
+      expect(guide.status).toBe(200);expect(guide.data).toMatchObject({version:topic==='messaging'?'1.2.1':'1.2.0',topic});
+      if(topic==='messaging') {
+        expect(guide.data.instructions).toContain('Immediately acknowledge receipt in a visible reply');
+        expect(guide.data.instructions).toContain('before starting task work');
+        expect(guide.data.instructions).toContain('do not duplicate replies');
+      }
       expect(guide.data.instructions.length).toBeGreaterThan(1000);
       expect(guide.data.instructions).not.toContain(waitingKey);
     }
@@ -548,6 +560,11 @@ describe.skipIf(!enabled)('real PostgreSQL bridge boundaries and recovery',()=> 
       const expectedName=role==='development'?'Developer':'Deployment Agent';
       expect((await api(config.access,undefined,'bootstrap')).data.identity.name).toBe(expectedName);
       expect(contents['workspace/AGENTS.md']).toContain(expectedName);
+      expect(contents['workspace/AGENTS.md']).toContain('You must respond to every new owner message');
+      expect(contents['workspace/AGENTS.md']).toContain('Immediately acknowledge receipt in a visible reply');
+      expect(contents['workspace/AGENTS.md']).toContain('before starting task work');
+      expect(contents['workspace/AGENTS.md']).toContain('Confirm the send succeeded before working');
+      expect(contents['scripts/quiet-session.mjs']).toContain('Response required: immediately acknowledge receipt in a visible reply');
       expect(contents['Start-Agent.ps1']).toContain("$WindowMode='Normal'");
       expect(contents['workspace/AGENTS.md']).not.toContain(config.access);
       expect(contents['Start-Agent.ps1']).not.toContain(config.access);

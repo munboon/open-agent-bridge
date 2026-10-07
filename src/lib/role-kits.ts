@@ -2,6 +2,7 @@ import {roleWorkInstructions} from './agent-instructions';
 import type { Transaction } from './db';
 import { inaccessible } from './protocol';
 import type { Owner } from './admin-service';
+import { conversationResponseRules } from './agent-guides';
 
 export async function createRoleKit(client:Transaction,owner:Owner,projectId:string,agentId:string) {
   const found=await client.query(`SELECT a.prompt_template,a.work_instructions,a.id,a.role,a.name,a.project_id,a.environment_id,p.name AS project_name,
@@ -13,7 +14,7 @@ export async function createRoleKit(client:Transaction,owner:Owner,projectId:str
   const identity=JSON.stringify({agent_id:agent.id,role:agent.role,project_id:agent.project_id,environment_id:agent.environment_id,bridge_origin:origin},null,2);
   return `# Open Agent Bridge
 
-Kit version 1.2.2. Protocol version 1. No credential is included.
+Kit version 1.2.3. Protocol version 1. No credential is included.
 
 Your work template is ${agent.prompt_template??agent.role} for this identity:
 
@@ -32,6 +33,8 @@ Discover project peers by authenticated ID and environment. UAT and production a
 5. Close with POST /api/v1/sessions/current/close and {} only on operator stop or actual harness shutdown; save a handoff. Runtime limits still apply. Never install a daemon, detached poller, connector, automatic launcher or required CLI. The bridge cannot keep a closed harness alive.
 
 ## Work and output
+
+${conversationResponseRules}
 
 Owner chat needs no developer or pairing. For a direct owner conversation (both participant IDs are your ID), reply with POST /api/v1/messages using the received conversation_id, your own agent ID as recipient_agent_id, type note and body. Use a persisted Idempotency-Key. The bridge shows your reply to the owner; an acknowledgement alone is not a reply. Refresh /api/v1/guides/messaging and /api/openapi if cached guidance disagrees.
 

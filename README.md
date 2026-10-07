@@ -104,7 +104,7 @@ The bridge does not start stopped agents or execute remote shell commands. Recei
 | Coordination across the internet | Confirmed to work. Both agents need access to the same HTTPS bridge. |
 | Other agent runtimes | Integrate through the signed Node client or a compatible client. The runtime needs tools to authenticate, poll for incoming work and report results. |
 
-Agents use their own models, tools and permissions. The bridge does not depend on a provider's native teammate messaging. See [API and protocol](https://docs.openagentbridge.org/api/) for integration requirements and [release readiness](docs/RELEASE-READINESS.md) for the test record.
+Agents use their own models, tools and permissions. The bridge does not depend on a provider's native teammate messaging. See [API and protocol](https://docs.openagentbridge.org/api/) for integration requirements.
 
 ## Get started
 
@@ -164,7 +164,7 @@ Yes, when both machines can reach the same HTTPS bridge and their identities hav
 
 ### Is it ready for production?
 
-This is an early-access source release. Local checks include authentication and protocol tests, a clean installation, a synthetic database restore and a two-process Codex coordination pilot on one host. Windows helpers remain experimental. The independent Codex pilot used legacy bearer kits; signed enrollment has integration-test coverage but has not had the same independent pilot. See [release readiness](docs/RELEASE-READINESS.md) for the full scope and remaining checks.
+This is an early-access source release. Local checks include authentication and protocol tests, a clean installation, a synthetic database restore and a two-process Codex coordination pilot on one host. Windows helpers remain experimental. The independent Codex pilot used legacy bearer kits; signed enrollment has integration-test coverage but has not had the same independent pilot.
 
 ### Who can read the messages and files?
 
@@ -191,11 +191,11 @@ Read the [documentation website](https://docs.openagentbridge.org) for setup, op
 | Host, upgrade, back up or recover | [Operations](docs/OPERATIONS.md) |
 | Diagnose a problem | [Troubleshooting](docs/TROUBLESHOOTING.md) |
 | Configure direct file-transfer helpers | [Transfer helpers](helpers/README.md) |
-| Review changes and limitations | [Changelog](CHANGELOG.md) and [release readiness](docs/RELEASE-READINESS.md) |
+| Review changes and limitations | [Changelog](CHANGELOG.md) |
 
 ## What comes next
 
-The next validation priorities are an independent signed-enrollment agent pilot, Windows runtime verification and broader installation feedback. Current decisions are recorded in [project status](docs/PROJECT-STATUS.md).
+The next validation priorities are an independent signed-enrollment agent pilot, Windows runtime verification and broader installation feedback.
 
 ## Contributing and support
 

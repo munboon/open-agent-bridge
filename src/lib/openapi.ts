@@ -1,3 +1,4 @@
+import {boardPostInput} from './project-board';
 import { accessDays } from './access-duration';
 import {contactScheduleSchema} from './agent-contact';
 import {promptTemplateSchema,workInstructionsSchema} from './agent-template-schema';
@@ -45,6 +46,11 @@ const task=z.object({id:uuid,project_id:uuid,environment_id:uuid,conversation_id
 const offer=z.object({id:uuid,origin:z.string().url(),expires_at:timestamp,revoked_at:timestamp.nullable(),cleanup_state:z.enum(['pending','confirmed','unknown'])});
 const receipt=z.object({id:uuid,transfer_id:uuid,offer_id:uuid,reporter_id:uuid,kind:z.enum(['uploaded','verified','failed']),measured_size:sequence,measured_sha256:z.string(),evidence:z.string(),created_at:timestamp});
 Object.assign(schemas,{
+  BoardPostInput:boardPostInput,
+  BoardReadInput:z.strictObject({post_ids:z.array(uuid).min(1).max(100)}),
+  BoardPinInput:z.strictObject({pinned:z.boolean()}),BoardRemoveInput:z.strictObject({confirm:z.literal(true)}),
+  BoardPost:z.object({id:uuid,project_id:uuid,sender_id:uuid.nullable(),author_type:z.enum(['owner','agent']),author_name:z.string(),environment_name:z.string().nullable(),parent_id:uuid.nullable(),root_id:uuid,kind:z.enum(['update','finding','decision','blocker']),body:z.string(),pinned:z.boolean(),removed_at:timestamp.nullable(),created_at:timestamp}),
+  BoardPage:z.object({posts:z.array(z.object({id:uuid,project_id:uuid,sender_id:uuid.nullable(),author_type:z.enum(['owner','agent']),author_name:z.string(),environment_name:z.string().nullable(),parent_id:uuid.nullable(),root_id:uuid,kind:z.enum(['update','finding','decision','blocker']),body:z.string(),pinned:z.boolean(),removed_at:timestamp.nullable(),created_at:timestamp})).max(100),has_more:z.boolean(),next_cursor:z.string().nullable(),older_cursor:z.string().nullable(),newer_cursor:z.string().nullable(),retention_gap:z.boolean(),view_available:z.boolean()}).describe('Only currently permitted posts. Opaque cursors are bound to identity, pairings and filters. Restart without a cursor on BOARD_VIEW_CHANGED. Reads do not acknowledge work.'),
   ProjectDeleteInput:z.strictObject({confirm_name:z.string().describe("Exact project name required for permanent deletion")}),ProjectDeleted:z.object({deleted:z.literal(true),id:uuid}),
   Project:project,ProjectList:z.object({projects:z.array(project.extend({agents:z.array(z.object({id:uuid,name:z.string(),role:z.enum(['development','deployment']),active:z.boolean(),environment_id:uuid,environment_name:z.string(),status:agentStatusSchema}))}))}),Environment:environment,AgentCreated:agentCreated,
   RecipientKey:recipientKey,Message:message,Conversation:conversation,Task:task,
@@ -72,7 +78,7 @@ function route(method:string,path:string,summary:string,schema?:string,settings:
   if(!settings.owner&&settings.session!==false)parameters.push({name:'X-Bridge-Session',in:'header',required:true,schema:{type:'string',format:'uuid'}});
   if(settings.idempotent)parameters.push({name:'Idempotency-Key',in:'header',required:true,schema:{type:'string',minLength:8,maxLength:128,pattern:'^[A-Za-z0-9_.:-]+$'}});
   if(settings.owner&&method==='post')parameters.push({name:'Origin',in:'header',required:true,schema:{type:'string',format:'uri'},description:'Must exactly match the configured owner portal origin.'});
-  for(const query of settings.query??[])parameters.push({name:query,in:'query',required:false,schema:query==='format'?{type:'string',enum:['agents','claude'],default:'agents'}:query==='after'?{type:'string',format:'uuid'}:{type:'integer',minimum:query==='limit'?1:0,maximum:query==='wait_seconds'?20:query==='limit'?100:9007199254740991}});
+  for(const query of settings.query??[])parameters.push({name:query,in:'query',required:false,schema:['q','cursor'].includes(query)?{type:'string',maxLength:query==='q'?200:2048}:['view_as','author'].includes(query)?{type:'string',description:query==='author'?'Agent UUID or owner':'Agent UUID for a read-only owner preview'}:query==='direction'?{type:'string',enum:['older','newer']}:query==='pinned'?{type:'boolean'}:query==='format'?{type:'string',enum:['agents','claude'],default:'agents'}:query==='after'?{type:'string',format:'uuid'}:{type:'integer',minimum:query==='limit'?1:0,maximum:query==='wait_seconds'?20:query==='limit'?100:9007199254740991}});
   const responses:Record<string,unknown>={'200':{description:settings.markdown?'Secret-free instruction file.':'Operation committed or authorized read returned. Resource timestamps are ISO 8601; sequence values may be decimal strings.',headers:{'Cache-Control':{schema:{type:'string',const:'no-store'}},...(settings.markdown?{'Content-Disposition':{schema:{type:'string'},description:'Attachment named AGENTS.md or CLAUDE.md.'}}:{})},content:settings.markdown?{'text/markdown':{schema:{type:'string'}}}:{'application/json':{schema:settings.response?{$ref:`#/components/schemas/${settings.response}`}:{type:'object'}}}}};
   for(const [status,description] of Object.entries({401:'Missing, invalid, expired or revoked identity',403:'Insufficient role, origin or local policy',404:'Unknown or inaccessible resource',405:'Unsupported method',409:'State, generation or idempotency conflict',410:'Expired offer or retired resource',413:'Request body too large',422:'Invalid request schema or manifest',429:'Rate or wait concurrency limit',503:'Dependency unavailable or capacity reached'})) responses[status]={description,content:{'application/json':{schema:{$ref:'#/components/schemas/Error'}}}};
   (paths[path]??={})[method]={summary,operationId:method+'_'+path.replace(/[^a-z0-9]/gi,'_'),tags:[settings.owner?'Owner':'Agents'],
@@ -80,7 +86,19 @@ function route(method:string,path:string,summary:string,schema?:string,settings:
     ...(schema?{requestBody:{required:true,content:{'application/json':{schema:{$ref:`#/components/schemas/${schema}`}}}}}:{})};
 }
 route('get','/api/v1/bootstrap','Read assigned identity and session policy; null idle_seconds and empty_polls mean no idle cutoff',undefined,{session:false});
-for(const topic of ['messaging','tasks','transfers','packages'])route('get',`/api/v1/guides/${topic}`,`Read the ${topic} guide only when needed; response includes version, topic and instructions`);
+for(const topic of ['messaging','tasks','transfers','packages','board'])route('get',`/api/v1/guides/${topic}`,`Read the ${topic} guide only when needed; response includes version, topic and instructions`);
+route('get','/api/v1/board','Discover the main board, permitted peers, visible pins and unread posts');
+route('get','/api/v1/board/posts','Read retained board posts under current pairing and inherited reply permissions',undefined,{query:['cursor','direction','limit','q','author','pinned'],response:'BoardPage'});
+route('get','/api/v1/board/posts/{id}','Read one currently permitted post',undefined,{response:'BoardPost'});
+route('post','/api/v1/board/posts','Publish an immutable project update or reply; this never grants task authority','BoardPostInput',{idempotent:true,response:'BoardPost'});
+route('post','/api/v1/board/read','Mark durably recorded visible posts read; this is not acceptance or completion','BoardReadInput');
+route('get','/api/admin/projects/{id}/board','Read board metadata or preview an agent without changing read markers',undefined,{owner:true,query:['view_as']});
+route('get','/api/admin/projects/{id}/board/posts','Read or search the project board; view_as applies the actual agent visibility rules',undefined,{owner:true,query:['view_as','cursor','direction','limit','q','author','pinned'],response:'BoardPage'});
+route('post','/api/admin/projects/{id}/board/read','Mark shown board updates read as the current owner; previews cannot mark read','BoardReadInput',{owner:true});
+route('post','/api/admin/projects/{id}/board/posts','Publish as the authenticated owner; previews cannot post','BoardPostInput',{owner:true,idempotent:true,response:'BoardPost'});
+route('post','/api/admin/projects/{id}/board/posts/{post_id}/pin','Pin or unpin an update; at most 20 pins','BoardPinInput',{owner:true});
+route('post','/api/admin/projects/{id}/board/posts/{post_id}/remove','Remove post text and preserve its author, replies and audit record','BoardRemoveInput',{owner:true});
+route('get','/api/admin/projects/{id}/conversations','Search and paginate owner-visible direct conversations by recent activity',undefined,{owner:true,query:['offset','q']});
 route('post','/api/v1/recipient-key','Register your own age encryption public key; matching retries succeed, replacement requires administrator recovery','RecipientKeyInput');
 route('get','/api/v1/conversations/{id}/recipient-key','Read the authenticated conversation recipient encryption key');
 route('get','/api/v1/peers','Discover permitted peers with prompt_template, role_name, public description and recipient keys; role remains a legacy compatibility field',undefined,{query:['limit','after']});

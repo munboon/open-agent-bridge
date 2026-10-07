@@ -1,3 +1,4 @@
+import {boardView,boardHistory,boardMetadata,boardPost,publishBoardPost,markBoardRead} from './project-board';
 import {beginContact,finishContact,recordShortPoll,reportContact} from './agent-contact';
 import {promptTemplateNames,templateDescriptions,type PromptTemplate} from './agent-instructions';
 import {purgePackages} from '../../scripts/package-retention';
@@ -38,6 +39,16 @@ export async function handleAgentRequest(request: Request, database: Pool, trans
     const method = request.method;
 
     const result = await agentTransaction(database,access,async (client,who) => {
+      if(path[0]==='board'){
+        const actor={id:who.id,owner_id:who.owner_id,project_id:who.project_id,agent_id:who.id};
+        const view=await boardView(client,who.project_id,who.id);
+        if(method==='GET'&&path.length===1)return boardMetadata(client,who.project_id,view);
+        if(method==='GET'&&path.join('/')==='board/posts')return boardHistory(client,who.project_id,view,url.searchParams);
+        if(method==='GET'&&path.length===3&&path[1]==='posts'){const post=await boardPost(client,who.project_id,uuid.parse(path[2]),view);const {sequence,required_agents,audience_agent_ids,owner_actor_id,...visiblePost}=post;return {...visiblePost,body:post.removed_at?'':post.body};}
+        if(method==='POST'&&path.join('/')==='board/posts')return publishBoardPost(client,actor,body,request.headers.get('Idempotency-Key'));
+        if(method==='POST'&&path.join('/')==='board/read')return markBoardRead(client,actor,body);
+        inaccessible();
+      }
       if(access.enrollment)return claimEnrollment(client,who,access,body);
       if(path[0]==='packages')return packageOperation(client,who,method,path,body,request.headers.get('Idempotency-Key'));
       if(path[0]==='transfers')return transferOperation(client,who,method,path,body,request.headers.get('Idempotency-Key'));
@@ -46,7 +57,7 @@ export async function handleAgentRequest(request: Request, database: Pool, trans
           return {version:'1.2.0',topic:path[1],instructions:agentGuides[path[1] as keyof typeof agentGuides]};
         }
         switch(path.join('/')) {
-          case 'bootstrap': return { protocol:{major:1,minor:2}, capabilities:{contact_schedule:true,short_poll_interval_seconds:5,message_transports:[...(process.env.BRIDGE_WEBSOCKET_ENABLED==='1'?['websocket']:[]),'sse','long_poll','short_poll'],websocket_path:process.env.BRIDGE_WEBSOCKET_ENABLED==='1'?'/api/v1/socket':null,events_path:'/api/v1/events',stream_lifetime_seconds:20,heartbeat_seconds:1,receipt_semantics:'retrieved_is_not_accepted'}, identity:{id:who.id,name:who.name,role:who.role,project_id:who.project_id,environment_id:who.environment_id},
+          case 'bootstrap': return { protocol:{major:1,minor:2}, capabilities:{project_board:true,board_path:'/api/v1/board',contact_schedule:true,short_poll_interval_seconds:5,message_transports:[...(process.env.BRIDGE_WEBSOCKET_ENABLED==='1'?['websocket']:[]),'sse','long_poll','short_poll'],websocket_path:process.env.BRIDGE_WEBSOCKET_ENABLED==='1'?'/api/v1/socket':null,events_path:'/api/v1/events',stream_lifetime_seconds:20,heartbeat_seconds:1,receipt_semantics:'retrieved_is_not_accepted'}, identity:{id:who.id,name:who.name,role:who.role,project_id:who.project_id,environment_id:who.environment_id},
             limits:{wait_seconds:20,page_size:100,message_bytes:65536,idle_seconds:null,empty_polls:null},
             session_policy:{idle_timeout:false,rediscover_after_empty_poll:true,close_on:'operator_stop_or_harness_shutdown'},server_time:new Date().toISOString() };
           case 'peers': {

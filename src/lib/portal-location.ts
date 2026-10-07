@@ -3,7 +3,7 @@ export type PortalLocation={area?:'administration'|'account';project:string|null
 export function parsePortalLocation(path:string):PortalLocation {
  if(path==='/administration'||path==='/account')return {project:null,section:'overview',area:path.slice(1) as 'administration'|'account'};
  if(path==='/'||path==='/projects'||path==='/projects/')return {project:null,section:'overview'};
- const match=/^\/projects\/([a-f0-9]{10})(?:\/(overview|agents|conversations|tasks|transfers|audit))?(?:\/([ac][a-f0-9]{10}))?\/?$/.exec(path);
+ const match=/^\/projects\/([a-f0-9]{10})(?:\/(overview|agents|conversations|tasks|transfers|audit))?(?:\/(board|[ac][a-f0-9]{10}))?\/?$/.exec(path);
  if(!match||match[3]&&match[2]!=='conversations')return {project:null,section:'overview',invalid:true};
  return {project:match[1],section:(match[2]??'overview') as PortalLocation['section'],thread:match[3]};
 }

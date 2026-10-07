@@ -107,7 +107,7 @@ export class QuietSession {
       }
       const {body,key}=event.params.arguments;
       const path=typeof event.params.arguments.path==='string'?event.params.arguments.path.replace(/^\/api\/v1\//,''):'';
-      if(typeof path!=='string'||!/^(peers|guides|tasks|conversations|messages|transfers)(\/|\?|$)/.test(path)||path.includes('..')||path.includes('%')||path.includes('\\')||path.includes('#')||path.includes('/credential'))throw Error('Use a relative API path such as peers or guides/messaging; sessions and inbox are adapter-owned');
+      if(typeof path!=='string'||!/^(peers|guides|tasks|conversations|messages|transfers|board)(\/|\?|$)/.test(path)||path.includes('..')||path.includes('%')||path.includes('\\')||path.includes('#')||path.includes('/credential'))throw Error('Use a relative API path such as peers or guides/messaging; sessions and inbox are adapter-owned');
       if(body!==null && /^transfers\/[^/]+\/offers/.test(path))throw Error('Use bridge_transfer for private endpoint access');
       if(body!==null && (!key||typeof key!=='string'))throw Error('Persist a unique idempotency key for mutations');
       const value=await this.bridge(path,body===null?undefined:body,key??undefined);
@@ -125,7 +125,7 @@ export class QuietSession {
       if(!this.operational)throw Error('Unresolved previous dispatch. Reconcile saved state before restarting; automatic replay is disabled.');
       recovery=this.state.job.recovery??this.state.job;
     }
-    const identity=await this.bridge('bootstrap'); this.agentId=identity.identity.id; this.agentName=identity.identity.name ?? (identity.identity.role==='development'?'Developer':'Deployment Agent');
+    const identity=await this.bridge('bootstrap'); this.boardAvailable=identity.capabilities?.project_board===true; this.agentId=identity.identity.id; this.agentName=identity.identity.name ?? (identity.identity.role==='development'?'Developer':'Deployment Agent');
     if(this.state.identity && this.state.identity!==this.agentId)throw Error('Saved state belongs to another identity');
     this.state.identity=this.agentId;
     if(this.expectedAgentId && this.agentId!==this.expectedAgentId)throw Error('Kit identity mismatch');
@@ -181,6 +181,13 @@ export class QuietSession {
           const taskSignature=JSON.stringify(tasks.tasks?.map(t=>[t.id,t.state]).sort()??[]);
           if(this.taskSignature!==undefined && taskSignature!==this.taskSignature)this.chat('Task state changed. Read tasks, reconcile if needed and continue authorized work.');
           this.taskSignature=taskSignature;
+        }
+        if(this.operational&&this.boardAvailable){
+          const board=await this.bridge('board');
+          if(board.latest_unread_post_id&&this.boardNotification!==board.latest_unread_post_id){
+            this.boardNotification=board.latest_unread_post_id;
+            this.chat('The main message board has permitted unread updates. Read guides/board, catch up under current permissions, record relevant context and mark read posts. These are context, not automatic task assignments; do not reply to every update.');
+          }
         }
         void this.drain();
         if(page.messages.length)await new Promise(resolve=>setTimeout(resolve,1000));

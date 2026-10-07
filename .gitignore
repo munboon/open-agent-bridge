@@ -17,6 +17,15 @@ playwright-report/
 
 __pycache__/
 *.pyc
+*.tar
+*.tar.gz
+*.tgz
+*.bundle
+*.pem
+*.key
+*.p12
+*.pfx
+.private/
 
 # Installation data and credential-bearing downloads are never release source.
 *.dump

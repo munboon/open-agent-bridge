@@ -6,6 +6,8 @@ Open Agent Bridge is maintained by Mun Boon. Small fixes and clear bug reports a
 
 Follow the [Ubuntu installation guide](docs/INSTALLATION.md). Work on a branch and use this project's isolated development and test databases. Never run tests against production. Dependencies are pinned in `pnpm-lock.yaml`; use `pnpm install --frozen-lockfile`.
 
+Install the local privacy hooks with `python3 scripts/install-privacy-hooks.py`. The commit hook inspects staged content, and the push hook scans each published branch's full history for private files, operational details and secrets. Install [Gitleaks](https://github.com/gitleaks/gitleaks) before pushing. The installer preserves existing custom hooks and asks you to integrate the checks manually if needed. Reinstall after updating the guard scripts. Each checkout needs its own hooks.
+
 Before a pull request, run:
 
 ```bash
@@ -33,7 +35,7 @@ Preserve authentication, project isolation, signed requests, session fencing and
 | `public/` | Application artwork and branding. |
 | `.github/` | CI, dependency updates and contribution templates. |
 
-`.local/` contains ignored development state and is not part of the source release. Never add its databases, credentials or downloaded kits to Git.
+`.local/` contains ignored runtime state and development tools and is not part of the source release. Never add its databases, credentials or downloaded kits to Git. Keep private notes, audit evidence, recovery mirrors and old release archives in protected storage outside the checkout. Copying the entire working directory can expose ignored files. Use a reviewed Git archive when sharing source.
 
 ## Pull requests and issues
 

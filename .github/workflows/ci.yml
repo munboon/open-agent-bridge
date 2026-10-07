@@ -30,6 +30,10 @@ jobs:
       AGE_KEYGEN_BINARY: /usr/bin/age-keygen
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Check public source privacy
+        run: |
+          python3 tests/public-source-privacy.test.py
+          python3 scripts/check-public-source.py
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24.15.0
@@ -40,8 +44,10 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y age
-          echo "BETTER_AUTH_SECRET=$(openssl rand -hex 48)" >> "$GITHUB_ENV"
-          echo "BRIDGE_ENVELOPE_KEY=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
+          ci_auth_secret=$(openssl rand -hex 48)
+          ci_envelope_key=$(openssl rand -base64 32)
+          printf "::add-mask::%s\n" "$ci_auth_secret" "$ci_envelope_key"
+          printf "BETTER_AUTH_SECRET=%s\nBRIDGE_ENVELOPE_KEY=%s\n" "$ci_auth_secret" "$ci_envelope_key" >> "$GITHUB_ENV"
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec tsx scripts/migrate.ts
       - run: pnpm typecheck

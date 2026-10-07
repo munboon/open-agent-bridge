@@ -60,6 +60,11 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('portable enrollment and bridge 
   const env:any=await admin(['projects',project,'environments'],{name:'Client hash check'});
   const row=(await db.query('SELECT id FROM bridge_agents WHERE environment_id=$1',[env.id])).rows[0];
   const setup=await ownerTransaction(db,owner,c=>issueEnrollment(c,owner,project,row.id,{}));
+  expect(setup.prompt).toContain('You must respond to every new owner message');
+  expect(setup.prompt).toContain('Immediately acknowledge receipt in a visible reply');
+  expect(setup.prompt).toContain('before starting task work');
+  expect(setup.prompt).toContain('Confirm this initial reply succeeded before beginning work');
+  expect(setup.prompt).not.toContain('If the request needs substantial work');
   const expected=/SHA-256 equals ([0-9a-f]{64})/.exec(setup.prompt)![1];
   const response=await servedClient();expect(sha(Buffer.from(await response.arrayBuffer()))).toBe(expected);
   expect(response.headers.get('Cache-Control')).toBe('no-store');
